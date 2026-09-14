@@ -5,6 +5,7 @@ import com.ziro.anindo.core.model.Episode
 import com.ziro.anindo.core.model.StreamCandidate
 import com.ziro.anindo.core.model.StreamResult
 import com.ziro.anindo.core.network.NetworkClient
+import com.ziro.anindo.core.provider.decryptor.PutarinDecryptor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
@@ -95,7 +96,12 @@ class NontonAnimeProvider : BaseProvider() {
                         quality = "720p",
                         isHls = src.contains("putarin") || src.contains("m3u8"),
                         resolve = {
-                            StreamResult(url = src, referer = episode.url)
+                            if (src.contains("putarin")) {
+                                val resolved = PutarinDecryptor.decrypt(src)
+                                StreamResult(url = resolved ?: src, referer = episode.url)
+                            } else {
+                                StreamResult(url = src, referer = episode.url)
+                            }
                         }
                     )
                 )

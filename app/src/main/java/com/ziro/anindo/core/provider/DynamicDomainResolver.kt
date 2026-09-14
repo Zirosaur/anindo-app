@@ -51,7 +51,7 @@ object DynamicDomainResolver {
                     candidates.add(str)
                 }
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {}
 
         // Add built-in defaults
         defaultDomains[key]?.forEach { d ->
@@ -86,7 +86,7 @@ object DynamicDomainResolver {
             NetworkClient.client.newCall(req).execute().use { resp ->
                 resp.isSuccessful || resp.code in 300..399
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
             false
         }
     }
