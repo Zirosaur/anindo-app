@@ -13,6 +13,7 @@ import okhttp3.FormBody
 import okhttp3.Request
 import org.json.JSONObject
 import org.jsoup.Jsoup
+import org.jsoup.parser.Parser
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
@@ -64,7 +65,6 @@ class OtakudesuProvider : BaseProvider() {
         val doc = Jsoup.parse(html, base)
         val episodes = mutableListOf<Episode>()
 
-        // Otakudesu uses .episodelist, .venser, or direct episode links
         val links = doc.select(".episodelist ul li a, .venser ul li a, div[class*='episode'] a, a[href*='/episode/']")
         val seenUrls = mutableSetOf<String>()
 
@@ -73,7 +73,6 @@ class OtakudesuProvider : BaseProvider() {
             val href = if (rawHref.startsWith("http")) rawHref else "$base/${rawHref.trimStart('/')}"
             val rawTitle = link.text().trim()
 
-            // Filter out duplicates and non-episode divider links (e.g. pembatas)
             if (!href.contains("/episode/") || seenUrls.contains(href) ||
                 rawTitle.contains("pembatas", ignoreCase = true) || href.contains("pembatas", ignoreCase = true)
             ) {
@@ -87,7 +86,6 @@ class OtakudesuProvider : BaseProvider() {
                 "Episode"
             }
 
-            // Parse episode number
             val numMatch = Regex("""(?i)(?:episode|ep)\s*(\d+(?:\.\d+)?)""").find(rawTitle)
                 ?: Regex("""(?i)episode-(\d+(?:\.\d+)?)""").find(href)
             val epNum = numMatch?.groupValues?.get(1)?.toFloatOrNull() ?: 1f
@@ -100,7 +98,6 @@ class OtakudesuProvider : BaseProvider() {
                 )
             )
         }
-        // Otakudesu defaults to newest first; sort ascending so Episode 1 is on top
         episodes.sortedBy { it.epNum }
     }
 
@@ -110,7 +107,39 @@ class OtakudesuProvider : BaseProvider() {
         val doc = Jsoup.parse(html, base)
         val candidates = mutableListOf<StreamCandidate>()
 
-        // 1. Direct iframe embeds in current episode page
+        // 1. Download section mirrors (Filedon & Pixeldrain) - proven fastest & most reliable in anindo CLI
+        val downloadItems = doc.select(".download ul li")
+        for (item in downloadItems) {
+            val qText = item.selectFirst("strong")?.text()?.trim() ?: "720p"
+            val links = item.select("a")
+            for (link in links) {
+                val hostName = link.text().trim()
+                val href = link.attr("href").ifBlank { link.attr("abs:href") }
+                if (href.isNotBlank()) {
+                    if (hostName.contains("Filedon", ignoreCase = true)) {
+                        candidates.add(
+                            StreamCandidate(
+                                server = "Filedon ($qText)",
+                                quality = qText,
+                                isHls = false,
+                                resolve = { resolveFiledon(href) }
+                            )
+                        )
+                    } else if (hostName.contains("Pdrain", ignoreCase = true) || hostName.contains("Pixeldrain", ignoreCase = true)) {
+                        candidates.add(
+                            StreamCandidate(
+                                server = "Pixeldrain ($qText)",
+                                quality = qText,
+                                isHls = false,
+                                resolve = { resolvePixeldrain(href) }
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // 2. Direct iframe embeds in current episode page (desustream, odcdn, putarin)
         val iframes = doc.select(".responsive-embed-stream iframe, .player-embed iframe, iframe[src*='desu'], iframe[src*='stream'], iframe[src*='putarin']")
         for (iframe in iframes) {
             val rawSrc = iframe.attr("src").ifBlank { iframe.attr("abs:src") }
@@ -118,7 +147,6 @@ class OtakudesuProvider : BaseProvider() {
             if (src.isNotBlank()) {
                 val isPutarin = src.contains("putarin")
                 val isDesu = src.contains("desustream") || src.contains("odcdn")
-                val isHls = src.contains("m3u8") || isPutarin
                 val srvName = when {
                     isPutarin -> "Putarin (HLS)"
                     isDesu -> "ODCloud / Desustream (HD)"
@@ -130,7 +158,7 @@ class OtakudesuProvider : BaseProvider() {
                     StreamCandidate(
                         server = srvName,
                         quality = "720p",
-                        isHls = isHls,
+                        isHls = isPutarin || src.contains("m3u8"),
                         resolve = {
                             when {
                                 isPutarin -> {
@@ -168,78 +196,142 @@ class OtakudesuProvider : BaseProvider() {
             }
         }
 
-        // 2. Mirrorstream AJAX embeds (ODStream, Ondesu HD, Archive/Arcg, etc.)
+        // 3. Mirrorstream section (YourUpload, Filedon, OndesuHD, ODStream)
+        val actions = Regex("""action\s*:\s*["']([a-f0-9]{32})["']""").findAll(html).map { it.groupValues[1] }.toList()
         val mirrorLinks = doc.select(".mirrorstream ul li a")
-        if (mirrorLinks.isNotEmpty()) {
-            val nonceActionMatch = Regex("""data\s*:\s*\{\s*action\s*:\s*["']([a-f0-9]{32})["']""").find(html)
-            val allActions = Regex("""action\s*:\s*["']([a-f0-9]{32})["']""").findAll(html).map { it.groupValues[1] }.toList()
-            val resolveAction = allActions.firstOrNull { it != nonceActionMatch?.groupValues?.get(1) } ?: "2a3505c93b0035d3f455df82bf976b84"
-            val nonceAction = nonceActionMatch?.groupValues?.get(1) ?: "aa1208d27f29ca340c92c66d1926f13f"
-
-            for (link in mirrorLinks) {
-                val dataContent = link.attr("data-content")
-                val serverName = link.text().trim()
-                if (dataContent.isNotBlank()) {
-                    candidates.add(
-                        StreamCandidate(
-                            server = "Mirror $serverName",
-                            quality = "720p",
-                            isHls = false,
-                            resolve = {
-                                resolveMirrorStream(
-                                    base = base,
-                                    referer = episode.url,
-                                    dataContentB64 = dataContent,
-                                    nonceAction = nonceAction,
-                                    resolveAction = resolveAction
-                                )
-                            }
-                        )
+        for (link in mirrorLinks) {
+            val dataContent = link.attr("data-content")
+            val serverName = link.text().trim()
+            if (dataContent.isNotBlank()) {
+                candidates.add(
+                    StreamCandidate(
+                        server = "$serverName (Mirror)",
+                        quality = "720p",
+                        isHls = false,
+                        resolve = {
+                            resolveMirrorStream(
+                                epUrl = episode.url,
+                                dataB64 = dataContent,
+                                mirrorName = serverName,
+                                actions = actions
+                            )
+                        }
                     )
-                }
+                )
             }
         }
 
-        // 3. Download Section: Pixeldrain / Pdrain Direct Video Stream
-        val downloadItems = doc.select(".download ul li")
-        for (item in downloadItems) {
-            val qText = item.selectFirst("strong")?.text()?.trim() ?: "720p"
-            val links = item.select("a")
-            for (link in links) {
-                val hostName = link.text().trim()
-                val href = link.attr("href").ifBlank { link.attr("abs:href") }
-                if (href.isNotBlank() && (hostName.contains("Pdrain", ignoreCase = true) || hostName.contains("Pixeldrain", ignoreCase = true))) {
-                    candidates.add(
-                        StreamCandidate(
-                            server = "Pixeldrain ($qText)",
-                            quality = qText,
-                            isHls = false,
-                            resolve = {
-                                val direct = resolvePixeldrain(href)
-                                if (direct != null) {
-                                    StreamResult(url = direct, referer = "")
-                                } else null
-                            }
-                        )
-                    )
+        // Sort candidates: prioritize 720p Filedon, 1080p Filedon, 480p Filedon, ODCloud, Mirrors, Pixeldrain
+        candidates.sortWith(
+            compareBy(
+                {
+                    val s = it.server.lowercase()
+                    when {
+                        s.contains("filedon") && s.contains("720p") -> 0
+                        s.contains("filedon") && s.contains("1080p") -> 1
+                        s.contains("filedon") && s.contains("480p") -> 2
+                        s.contains("filedon") -> 3
+                        s.contains("odcloud") -> 4
+                        s.contains("yourupload") -> 5
+                        s.contains("mirror") -> 6
+                        s.contains("pixeldrain") -> 7
+                        else -> 8
+                    }
                 }
-            }
-        }
-
+            )
+        )
         candidates
     }
 
-    private fun resolveMirrorStream(
-        base: String,
-        referer: String,
-        dataContentB64: String,
-        nonceAction: String,
-        resolveAction: String
-    ): StreamResult? {
+    private fun curlRedirect(url: String, timeoutSec: Int = 5): String? {
         return try {
-            val ajaxUrl = "${base.trimEnd('/')}/wp-admin/admin-ajax.php"
+            val req = Request.Builder()
+                .url(url)
+                .header("User-Agent", NetworkClient.USER_AGENT)
+                .build()
 
-            // 1. Fetch nonce
+            val noRedirectClient = NetworkClient.client.newBuilder()
+                .followRedirects(false)
+                .build()
+
+            noRedirectClient.newCall(req).execute().use { resp ->
+                resp.header("Location")
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun resolveFiledon(rawHref: String): StreamResult? {
+        return try {
+            val loc = if (rawHref.contains("desustream") || rawHref.contains("link.desustream")) {
+                curlRedirect(rawHref, 5)
+            } else {
+                rawHref
+            } ?: return null
+
+            val embedUrl = loc.replace("/view/", "/embed/")
+            val page = NetworkClient.get(embedUrl)
+            val m = Regex("""data-page="([^"]+)"""").find(page)
+            if (m != null) {
+                val unescaped = Parser.unescapeEntities(m.groupValues[1], false)
+                val json = JSONObject(unescaped)
+                val r2Url = json.optJSONObject("props")?.optString("url")
+                if (!r2Url.isNullOrBlank() && isDirectMediaUrl(r2Url)) {
+                    StreamResult(url = r2Url, referer = "")
+                } else null
+            } else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun resolveYourUpload(embedUrl: String): StreamResult? {
+        return try {
+            val mId = Regex("""id=([A-Za-z0-9_-]+)""").find(embedUrl)
+                ?: Regex("""/embed/([A-Za-z0-9_-]+)""").find(embedUrl)
+            val yuId = mId?.groupValues?.get(1) ?: return null
+            val page = NetworkClient.get("https://yourupload.com/embed/$yuId", referer = "https://desudrive.com/")
+            val vMatch = Regex("""file\s*:\s*['"](https?://[^'"]+\.mp4[^'"]*)['"]""").find(page)
+                ?: Regex("""property="og:video"\s+content="([^"]+)"""").find(page)
+            if (vMatch != null && isDirectMediaUrl(vMatch.groupValues[1])) {
+                StreamResult(url = vMatch.groupValues[1], referer = "https://yourupload.com/")
+            } else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun resolvePixeldrain(rawHref: String): StreamResult? {
+        return try {
+            val loc = curlRedirect(rawHref, 5)
+            if (!loc.isNullOrBlank() && loc.contains("pixeldrain.com/u/")) {
+                val fileId = loc.substringAfter("/u/").substringBefore("/").substringBefore("?").substringBefore("#").trim()
+                if (fileId.isNotBlank()) {
+                    val directUrl = "https://pixeldrain.com/api/file/$fileId"
+                    StreamResult(url = directUrl, referer = "")
+                } else null
+            } else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun resolveMirrorStream(
+        epUrl: String,
+        dataB64: String,
+        mirrorName: String,
+        actions: List<String>
+    ): StreamResult? {
+        if (actions.size < 2) return null
+        return try {
+            val otakudesuBase = getBaseUrl()
+            val ajaxUrl = "${otakudesuBase.trimEnd('/')}/wp-admin/admin-ajax.php"
+
+            // 1. In anindo CLI: actions[1] is nonce action
+            val nonceAction = actions[1]
+            val resolveAction = actions[0]
+
             val nonceReqBody = FormBody.Builder()
                 .add("action", nonceAction)
                 .build()
@@ -247,7 +339,8 @@ class OtakudesuProvider : BaseProvider() {
                 .url(ajaxUrl)
                 .post(nonceReqBody)
                 .header("User-Agent", NetworkClient.USER_AGENT)
-                .header("Referer", referer)
+                .header("Referer", epUrl)
+                .header("Origin", otakudesuBase)
                 .header("X-Requested-With", "XMLHttpRequest")
                 .build()
 
@@ -255,8 +348,8 @@ class OtakudesuProvider : BaseProvider() {
             val nonce = JSONObject(nonceResStr).optString("data", "")
             if (nonce.isBlank()) return null
 
-            // 2. Decode payload JSON
-            val decodedJson = String(Base64.decode(dataContentB64, Base64.DEFAULT), StandardCharsets.UTF_8)
+            // 2. Query mirror embed with actions[0]
+            val decodedJson = String(Base64.decode(dataB64, Base64.DEFAULT), StandardCharsets.UTF_8)
             val payloadObj = JSONObject(decodedJson)
 
             val formBuilder = FormBody.Builder()
@@ -270,7 +363,8 @@ class OtakudesuProvider : BaseProvider() {
                 .url(ajaxUrl)
                 .post(formBuilder.build())
                 .header("User-Agent", NetworkClient.USER_AGENT)
-                .header("Referer", referer)
+                .header("Referer", epUrl)
+                .header("Origin", otakudesuBase)
                 .header("X-Requested-With", "XMLHttpRequest")
                 .build()
 
@@ -279,63 +373,43 @@ class OtakudesuProvider : BaseProvider() {
             if (b64Html.isBlank()) return null
 
             val embedHtml = String(Base64.decode(b64Html, Base64.DEFAULT), StandardCharsets.UTF_8)
-            val ifrMatch = Regex("""src=["']([^"']+)["']""").find(embedHtml)
-            val ifrSrc = ifrMatch?.groupValues?.get(1) ?: return null
+            val srcMatch = Regex("""src=["']([^"']+)["']""").find(embedHtml) ?: return null
+            val srcUrl = srcMatch.groupValues[1]
 
-            // 3. Fetch iframe and extract direct video
-            val ifrHtml = NetworkClient.get(ifrSrc, referer = referer)
-            val directMedia = extractDirectMediaFromHtml(ifrHtml)
-            if (directMedia != null) {
-                StreamResult(url = directMedia, referer = ifrSrc)
-            } else null
-        } catch (_: Exception) {
-            null
-        }
-    }
+            val lowerName = mirrorName.lowercase()
+            val lowerSrc = srcUrl.lowercase()
 
-    private fun resolvePixeldrain(shortlink: String): String? {
-        return try {
-            val req = Request.Builder()
-                .url(shortlink)
-                .header("User-Agent", NetworkClient.USER_AGENT)
-                .build()
-
-            val noRedirectClient = NetworkClient.client.newBuilder()
-                .followRedirects(false)
-                .build()
-
-            val loc = noRedirectClient.newCall(req).execute().use { resp ->
-                resp.header("Location")
+            when {
+                lowerName.contains("yourupload") || lowerSrc.contains("yuplod") -> {
+                    resolveYourUpload(srcUrl)
+                }
+                lowerName.contains("filedon") || lowerSrc.contains("filedon") -> {
+                    resolveFiledon(srcUrl)
+                }
+                else -> {
+                    val ifrHtml = NetworkClient.get(srcUrl, referer = epUrl)
+                    val direct = extractDirectMediaFromHtml(ifrHtml)
+                    if (direct != null) StreamResult(url = direct, referer = srcUrl) else null
+                }
             }
-
-            if (!loc.isNullOrBlank() && loc.contains("pixeldrain.com/u/")) {
-                val fileId = loc.substringAfter("/u/").substringBefore("?").substringBefore("#").trim()
-                if (fileId.isNotBlank()) {
-                    "https://pixeldrain.com/api/file/$fileId"
-                } else null
-            } else null
         } catch (_: Exception) {
             null
         }
     }
 
     private fun extractDirectMediaFromHtml(html: String): String? {
-        // 1. videoURL = "https://..."
         val vMatch = Regex("""videoURL\s*=\s*["']([^"']+)["']""").find(html)
         if (vMatch != null && isDirectMediaUrl(vMatch.groupValues[1])) {
             return vMatch.groupValues[1]
         }
-        // 2. file: "https://..." (playerjs / archive.org)
         val fileMatch = Regex("""(?:file|sources?)\s*:\s*["']([^"']+)["']""").find(html)
         if (fileMatch != null && isDirectMediaUrl(fileMatch.groupValues[1])) {
             return fileMatch.groupValues[1]
         }
-        // 3. <source src="https://..."> (blogger / googlevideo / ondesu)
         val sourceMatch = Regex("""<source[^>]+src=["']([^"']+)["']""").find(html)
         if (sourceMatch != null && isDirectMediaUrl(sourceMatch.groupValues[1])) {
             return sourceMatch.groupValues[1]
         }
-        // 4. Any direct mp4/m3u8 url
         val directMatch = Regex("""["'](https?://[^"']+\.(?:mp4|m3u8)[^"']*)["']""").find(html)
         if (directMatch != null && isDirectMediaUrl(directMatch.groupValues[1])) {
             return directMatch.groupValues[1]
@@ -348,8 +422,10 @@ class OtakudesuProvider : BaseProvider() {
         if (!clean.startsWith("http")) return false
         if (clean.contains("/embed/") || clean.contains("desustream.net/dstream/") || clean.contains("link.desustream.com")) return false
         return clean.contains(".mp4") || clean.contains(".m3u8") ||
-                clean.contains("googlevideo.com") || clean.contains("archive.org") ||
-                clean.contains("odcloud.net") || clean.contains("pixeldrain.com/api/file")
+                clean.contains("cloudflarestorage.com") || clean.contains("googlevideo.com") ||
+                clean.contains("archive.org") || clean.contains("odcloud.net") ||
+                clean.contains("pixeldrain.com/api/file") || clean.contains("yourupload.com") ||
+                clean.contains("/api/hls") || clean.contains("putarin")
     }
 
     override suspend fun getOngoing(): List<Anime> = withContext(Dispatchers.IO) {
