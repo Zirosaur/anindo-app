@@ -2,6 +2,10 @@
 
 > 📱 **Aplikasi Streaming & Unduh Anime Bebas Iklan untuk Android (Subtitle Indonesia), terinspirasi oleh filosofi dan desain Mihon / Tachiyomi.**
 
+[![Download Beta APK](https://img.shields.io/badge/Download-v0.1.0--beta%20APK-00E5FF?style=for-the-badge&logo=android&logoColor=black)](https://github.com/Zirosaur/anindo-app/releases/download/v0.1.0-beta/anindo-app-v0.1.0-beta.apk)
+[![Release](https://img.shields.io/github/v/release/Zirosaur/anindo-app?include_prereleases&style=for-the-badge&color=00E5FF)](https://github.com/Zirosaur/anindo-app/releases/tag/v0.1.0-beta)
+
+
 ---
 
 ## ✨ Fitur Utama
