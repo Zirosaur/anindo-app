@@ -1,6 +1,6 @@
 package com.ziro.anindo.ui.navigation
 
-import java.net.URLEncoder
+import android.util.Base64
 
 sealed class Screen(val route: String, val title: String) {
     object Library : Screen("library", "Koleksi")
@@ -9,7 +9,7 @@ sealed class Screen(val route: String, val title: String) {
     object History : Screen("history", "Riwayat")
 
     object Details : Screen(
-        "details/{animeUrl}?animeId={animeId}&title={title}&poster={poster}&provider={provider}",
+        "details/{animeUrlB64}?animeId={animeId}&title={title}&poster={poster}&provider={provider}",
         "Detail"
     ) {
         fun createRoute(
@@ -19,17 +19,17 @@ sealed class Screen(val route: String, val title: String) {
             poster: String = "",
             provider: String = "otakudesu"
         ): String {
-            val encUrl = URLEncoder.encode(animeUrl, "UTF-8")
-            val encId = URLEncoder.encode(animeId, "UTF-8")
-            val encTitle = URLEncoder.encode(title, "UTF-8")
-            val encPoster = URLEncoder.encode(poster, "UTF-8")
-            val encProvider = URLEncoder.encode(provider, "UTF-8")
+            val encUrl = encodeParam(animeUrl)
+            val encId = encodeParam(animeId)
+            val encTitle = encodeParam(title)
+            val encPoster = encodeParam(poster)
+            val encProvider = encodeParam(provider)
             return "details/$encUrl?animeId=$encId&title=$encTitle&poster=$encPoster&provider=$encProvider"
         }
     }
 
     object Player : Screen(
-        "player/{streamUrl}/{title}?animeId={animeId}&animeTitle={animeTitle}&poster={poster}&epUrl={epUrl}",
+        "player/{streamUrlB64}/{titleB64}?animeId={animeId}&animeTitle={animeTitle}&poster={poster}&epUrl={epUrl}&referer={referer}",
         "Pemutar"
     ) {
         fun createRoute(
@@ -38,15 +38,58 @@ sealed class Screen(val route: String, val title: String) {
             animeId: String = "",
             animeTitle: String = "",
             poster: String = "",
-            epUrl: String = ""
+            epUrl: String = "",
+            referer: String = ""
         ): String {
-            val encStream = URLEncoder.encode(streamUrl, "UTF-8")
-            val encTitle = URLEncoder.encode(title, "UTF-8")
-            val encId = URLEncoder.encode(animeId, "UTF-8")
-            val encAnimeTitle = URLEncoder.encode(animeTitle, "UTF-8")
-            val encPoster = URLEncoder.encode(poster, "UTF-8")
-            val encEp = URLEncoder.encode(epUrl, "UTF-8")
-            return "player/$encStream/$encTitle?animeId=$encId&animeTitle=$encAnimeTitle&poster=$encPoster&epUrl=$encEp"
+            val encStream = encodeParam(streamUrl)
+            val encTitle = encodeParam(title)
+            val encId = encodeParam(animeId)
+            val encAnimeTitle = encodeParam(animeTitle)
+            val encPoster = encodeParam(poster)
+            val encEp = encodeParam(epUrl)
+            val encReferer = encodeParam(referer)
+            return "player/$encStream/$encTitle?animeId=$encId&animeTitle=$encAnimeTitle&poster=$encPoster&epUrl=$encEp&referer=$encReferer"
+        }
+    }
+
+    companion object {
+        fun encodeParam(value: String): String {
+            if (value.isBlank()) return ""
+            return try {
+                Base64.encodeToString(
+                    value.toByteArray(Charsets.UTF_8),
+                    Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
+                )
+            } catch (e: Throwable) {
+                try {
+                    java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(value.toByteArray(Charsets.UTF_8))
+                } catch (e2: Throwable) {
+                    java.net.URLEncoder.encode(value, "UTF-8")
+                }
+            }
+        }
+
+        fun decodeParam(encoded: String): String {
+            if (encoded.isBlank()) return ""
+            return try {
+                String(
+                    Base64.decode(
+                        encoded,
+                        Base64.URL_SAFE or Base64.NO_WRAP
+                    ),
+                    Charsets.UTF_8
+                )
+            } catch (e: Throwable) {
+                try {
+                    String(java.util.Base64.getUrlDecoder().decode(encoded), Charsets.UTF_8)
+                } catch (e2: Throwable) {
+                    try {
+                        java.net.URLDecoder.decode(encoded, "UTF-8")
+                    } catch (e3: Throwable) {
+                        encoded
+                    }
+                }
+            }
         }
     }
 }

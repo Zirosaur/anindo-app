@@ -2,10 +2,17 @@ package com.ziro.anindo.ui.screens.player
 
 import android.app.Activity
 import android.content.Context
+import android.content.pm.ActivityInfo
 import android.media.AudioManager
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.annotation.OptIn
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import com.ziro.anindo.core.network.NetworkClient
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -96,6 +103,7 @@ fun PlayerScreen(
     animeTitle: String = "",
     posterUrl: String = "",
     episodeUrl: String = "",
+    referer: String = "",
     onBackClick: () -> Unit
 ) {
     val context = LocalContext.current
@@ -103,11 +111,33 @@ fun PlayerScreen(
     val repository = AnindoApp.instance.repository
     val scope = rememberCoroutineScope()
 
+    // Enforce Landscape orientation and hide system bars while in PlayerScreen
+    DisposableEffect(Unit) {
+        val originalOrientation = activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+
+        // Immersive sticky fullscreen mode
+        activity?.window?.let { window ->
+            val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+            insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            insetsController.hide(WindowInsetsCompat.Type.systemBars())
+        }
+
+        onDispose {
+            activity?.requestedOrientation = originalOrientation
+            activity?.window?.let { window ->
+                val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+                insetsController.show(WindowInsetsCompat.Type.systemBars())
+            }
+        }
+    }
+
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
     val maxVolume = remember { audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC) }
 
     var isPlaying by remember { mutableStateOf(true) }
     var isBuffering by remember { mutableStateOf(true) }
+    var playbackError by remember { mutableStateOf<String?>(null) }
     var currentPosition by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(0L) }
     var isControlsVisible by remember { mutableStateOf(true) }
@@ -133,13 +163,31 @@ fun PlayerScreen(
     }
     val resizeLabels = remember { listOf("Fit", "Zoom", "Stretch") }
 
-    val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
-            val mediaItem = MediaItem.fromUri(streamUrl)
-            setMediaItem(mediaItem)
-            prepare()
-            playWhenReady = true
+    val exoPlayer = remember(streamUrl) {
+        val headers = mutableMapOf(
+            "User-Agent" to NetworkClient.USER_AGENT
+        )
+        if (referer.isNotBlank()) {
+            headers["Referer"] = referer
+        } else if (streamUrl.contains("desustream") || streamUrl.contains("odcdn") || streamUrl.contains("odcloud")) {
+            headers["Referer"] = "https://desustream.net/"
         }
+
+        val okHttpDataSourceFactory = OkHttpDataSource.Factory(NetworkClient.client)
+            .setUserAgent(NetworkClient.USER_AGENT)
+            .setDefaultRequestProperties(headers)
+
+        val mediaSourceFactory = DefaultMediaSourceFactory(context)
+            .setDataSourceFactory(okHttpDataSourceFactory)
+
+        ExoPlayer.Builder(context)
+            .setMediaSourceFactory(mediaSourceFactory)
+            .build().apply {
+                val mediaItem = MediaItem.fromUri(streamUrl)
+                setMediaItem(mediaItem)
+                prepare()
+                playWhenReady = true
+            }
     }
 
     var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
@@ -161,11 +209,17 @@ fun PlayerScreen(
                 isBuffering = (state == Player.STATE_BUFFERING)
                 if (state == Player.STATE_READY) {
                     duration = exoPlayer.duration.coerceAtLeast(0L)
+                    playbackError = null
                 }
             }
 
             override fun onIsPlayingChanged(playing: Boolean) {
                 isPlaying = playing
+            }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                isBuffering = false
+                playbackError = error.message ?: "Gagal memutar video (${error.errorCodeName})"
             }
         }
         exoPlayer.addListener(listener)
@@ -327,11 +381,56 @@ fun PlayerScreen(
         )
 
         // Buffering Spinner
-        if (isBuffering) {
+        if (isBuffering && playbackError == null) {
             CircularProgressIndicator(
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.align(Alignment.Center)
             )
+        }
+
+        // Error Overlay with Retry Option
+        if (playbackError != null) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color.Black.copy(alpha = 0.85f),
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(24.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterVertically,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Lock, // safe fallback icon or error
+                        contentDescription = "Error",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(44.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = playbackError ?: "Gagal memutar video",
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        androidx.compose.material3.OutlinedButton(onClick = onBackClick) {
+                            Text("Kembali", color = Color.White)
+                        }
+                        androidx.compose.material3.Button(onClick = {
+                            playbackError = null
+                            isBuffering = true
+                            exoPlayer.prepare()
+                            exoPlayer.play()
+                        }) {
+                            Text("Coba Lagi")
+                        }
+                    }
+                }
+            }
         }
 
         // Gesture HUD Badge (Center Overlay)

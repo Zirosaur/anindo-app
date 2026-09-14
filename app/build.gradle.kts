@@ -14,8 +14,8 @@ android {
         applicationId = "com.ziro.anindo"
         minSdk = 24
         targetSdk = 34
-        versionCode = 5
-        versionName = "0.1.4-beta"
+        versionCode = 6
+        versionName = "0.1.5-beta"
 
 
 
@@ -95,7 +95,8 @@ dependencies {
     // Video Player (Media3 / ExoPlayer with HLS & gesture support)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.ui)
-    implementation(libs.androidx.media3.hls)
+    implementation(libs.androidx.media3.datasource.okhttp)
+    implementation(libs.androidx.media3.exoplayer.hls)
 
     // Local Storage & Watch History (Room)
     implementation(libs.androidx.room.runtime)

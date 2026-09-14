@@ -143,24 +143,24 @@ class MainActivity : ComponentActivity() {
                         composable(
                             route = Screen.Details.route,
                             arguments = listOf(
-                                navArgument("animeUrl") { type = NavType.StringType },
+                                navArgument("animeUrlB64") { type = NavType.StringType },
                                 navArgument("animeId") { type = NavType.StringType; defaultValue = "" },
                                 navArgument("title") { type = NavType.StringType; defaultValue = "" },
                                 navArgument("poster") { type = NavType.StringType; defaultValue = "" },
                                 navArgument("provider") { type = NavType.StringType; defaultValue = "otakudesu" }
                             )
                         ) { backStackEntry ->
-                            val encUrl = backStackEntry.arguments?.getString("animeUrl") ?: ""
+                            val encUrl = backStackEntry.arguments?.getString("animeUrlB64") ?: ""
                             val encId = backStackEntry.arguments?.getString("animeId") ?: ""
                             val encTitle = backStackEntry.arguments?.getString("title") ?: ""
                             val encPoster = backStackEntry.arguments?.getString("poster") ?: ""
                             val encProvider = backStackEntry.arguments?.getString("provider") ?: "otakudesu"
 
-                            val animeUrl = try { URLDecoder.decode(encUrl, "UTF-8") } catch (e: Exception) { encUrl }
-                            val animeId = try { URLDecoder.decode(encId, "UTF-8") } catch (e: Exception) { encId }
-                            val animeTitle = try { URLDecoder.decode(encTitle, "UTF-8") } catch (e: Exception) { encTitle }
-                            val posterUrl = try { URLDecoder.decode(encPoster, "UTF-8") } catch (e: Exception) { encPoster }
-                            val provider = try { URLDecoder.decode(encProvider, "UTF-8") } catch (e: Exception) { encProvider }
+                            val animeUrl = Screen.decodeParam(encUrl)
+                            val animeId = Screen.decodeParam(encId)
+                            val animeTitle = Screen.decodeParam(encTitle)
+                            val posterUrl = Screen.decodeParam(encPoster)
+                            val provider = Screen.decodeParam(encProvider)
 
                             DetailsScreen(
                                 animeUrl = animeUrl,
@@ -169,7 +169,7 @@ class MainActivity : ComponentActivity() {
                                 posterUrl = posterUrl,
                                 providerName = provider,
                                 onBackClick = { navController.popBackStack() },
-                                onPlayEpisode = { streamUrl, epTitle ->
+                                onPlayEpisode = { streamUrl, epTitle, ref ->
                                     navController.navigate(
                                         Screen.Player.createRoute(
                                             streamUrl = streamUrl,
@@ -177,7 +177,8 @@ class MainActivity : ComponentActivity() {
                                             animeId = animeId,
                                             animeTitle = animeTitle,
                                             poster = posterUrl,
-                                            epUrl = streamUrl
+                                            epUrl = streamUrl,
+                                            referer = ref
                                         )
                                     )
                                 }
@@ -186,27 +187,30 @@ class MainActivity : ComponentActivity() {
                         composable(
                             route = Screen.Player.route,
                             arguments = listOf(
-                                navArgument("streamUrl") { type = NavType.StringType },
-                                navArgument("title") { type = NavType.StringType },
+                                navArgument("streamUrlB64") { type = NavType.StringType },
+                                navArgument("titleB64") { type = NavType.StringType },
                                 navArgument("animeId") { type = NavType.StringType; defaultValue = "" },
                                 navArgument("animeTitle") { type = NavType.StringType; defaultValue = "" },
                                 navArgument("poster") { type = NavType.StringType; defaultValue = "" },
-                                navArgument("epUrl") { type = NavType.StringType; defaultValue = "" }
+                                navArgument("epUrl") { type = NavType.StringType; defaultValue = "" },
+                                navArgument("referer") { type = NavType.StringType; defaultValue = "" }
                             )
                         ) { backStackEntry ->
-                            val encStream = backStackEntry.arguments?.getString("streamUrl") ?: ""
-                            val encTitle = backStackEntry.arguments?.getString("title") ?: ""
+                            val encStream = backStackEntry.arguments?.getString("streamUrlB64") ?: ""
+                            val encTitle = backStackEntry.arguments?.getString("titleB64") ?: ""
                             val encId = backStackEntry.arguments?.getString("animeId") ?: ""
                             val encAnimeTitle = backStackEntry.arguments?.getString("animeTitle") ?: ""
                             val encPoster = backStackEntry.arguments?.getString("poster") ?: ""
                             val encEp = backStackEntry.arguments?.getString("epUrl") ?: ""
+                            val encReferer = backStackEntry.arguments?.getString("referer") ?: ""
 
-                            val streamUrl = URLDecoder.decode(encStream, "UTF-8")
-                            val title = URLDecoder.decode(encTitle, "UTF-8")
-                            val animeId = URLDecoder.decode(encId, "UTF-8")
-                            val animeTitle = URLDecoder.decode(encAnimeTitle, "UTF-8")
-                            val posterUrl = URLDecoder.decode(encPoster, "UTF-8")
-                            val epUrl = URLDecoder.decode(encEp, "UTF-8")
+                            val streamUrl = Screen.decodeParam(encStream)
+                            val title = Screen.decodeParam(encTitle)
+                            val animeId = Screen.decodeParam(encId)
+                            val animeTitle = Screen.decodeParam(encAnimeTitle)
+                            val posterUrl = Screen.decodeParam(encPoster)
+                            val epUrl = Screen.decodeParam(encEp)
+                            val referer = Screen.decodeParam(encReferer)
 
                             PlayerScreen(
                                 streamUrl = streamUrl,
@@ -215,6 +219,7 @@ class MainActivity : ComponentActivity() {
                                 animeTitle = animeTitle,
                                 posterUrl = posterUrl,
                                 episodeUrl = epUrl,
+                                referer = referer,
                                 onBackClick = { navController.popBackStack() }
                             )
                         }
