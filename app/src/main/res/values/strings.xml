@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">anindo</string>
+    <string name="nav_library">Koleksi</string>
+    <string name="nav_ongoing">Ongoing</string>
+    <string name="nav_explore">Jelajah</string>
+    <string name="nav_history">Riwayat</string>
+    <string name="nav_settings">Pengaturan</string>
+</resources>
