@@ -1,15 +1,14 @@
 package com.ziro.anindo.core.model
 
 data class WatchHistory(
+    val animeId: String,
     val animeTitle: String,
-    val animeUrl: String,
-    val lastEpTitle: String,
-    val lastEpNum: Float,
-    val lastEpUrl: String,
-    val provider: String,
-    val timePosSeconds: Long = 0,
-    val durationSeconds: Long = 0,
-    val percent: Int = 0,
-    val status: String = "completed", // "in_progress" or "completed"
-    val updatedAt: Long = System.currentTimeMillis()
-)
+    val episodeUrl: String,
+    val episodeTitle: String,
+    val positionMs: Long = 0L,
+    val durationMs: Long = 0L,
+    val lastWatchedTimestamp: Long = System.currentTimeMillis()
+) {
+    val progressPercent: Float
+        get() = if (durationMs > 0L) (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f
+}
