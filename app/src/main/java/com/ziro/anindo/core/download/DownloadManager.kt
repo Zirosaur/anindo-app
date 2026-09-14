@@ -8,6 +8,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.ziro.anindo.AnindoApp
 import com.ziro.anindo.core.data.local.entity.DownloadEntity
+import java.io.File
 import java.util.UUID
 
 class AppDownloadManager(private val context: Context) {
@@ -21,6 +22,7 @@ class AppDownloadManager(private val context: Context) {
         episodeTitle: String,
         episodeUrl: String,
         videoStreamUrl: String,
+        referer: String = "",
         quality: String = "720p"
     ): String {
         val downloadId = UUID.randomUUID().toString()
@@ -47,6 +49,7 @@ class AppDownloadManager(private val context: Context) {
             .putString(DownloadWorker.KEY_URL, videoStreamUrl)
             .putString(DownloadWorker.KEY_TITLE, "$animeTitle - $episodeTitle")
             .putString(DownloadWorker.KEY_FILENAME, filename)
+            .putString(DownloadWorker.KEY_REFERER, referer)
             .build()
 
         val constraints = Constraints.Builder()
@@ -65,5 +68,18 @@ class AppDownloadManager(private val context: Context) {
 
     fun cancelDownload(downloadId: String) {
         workManager.cancelAllWorkByTag("download_$downloadId")
+    }
+
+    suspend fun deleteDownload(downloadId: String, filePath: String = "") {
+        cancelDownload(downloadId)
+        if (filePath.isNotBlank()) {
+            try {
+                val file = File(filePath)
+                if (file.exists()) {
+                    file.delete()
+                }
+            } catch (_: Exception) {}
+        }
+        downloadDao.deleteDownload(downloadId)
     }
 }

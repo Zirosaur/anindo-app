@@ -1,7 +1,9 @@
 package com.ziro.anindo.core.data.repository
 
+import com.ziro.anindo.AnindoApp
 import com.ziro.anindo.core.data.local.AppDatabase
 import com.ziro.anindo.core.data.local.entity.AnimeEntity
+import com.ziro.anindo.core.data.local.entity.DownloadEntity
 import com.ziro.anindo.core.data.local.entity.EpisodeProgressEntity
 import com.ziro.anindo.core.model.Anime
 import kotlinx.coroutines.flow.Flow
@@ -12,6 +14,7 @@ class AnimeRepository(
 ) {
     private val animeDao = database.animeDao()
     private val progressDao = database.episodeProgressDao()
+    private val downloadDao = database.downloadDao()
 
     fun getBookmarkedAnime(): Flow<List<Anime>> {
         return animeDao.getBookmarkedAnime().map { list ->
@@ -75,5 +78,13 @@ class AnimeRepository(
 
     suspend fun clearHistory() {
         progressDao.clearHistory()
+    }
+
+    fun getAllDownloads(): Flow<List<DownloadEntity>> {
+        return downloadDao.observeAllDownloads()
+    }
+
+    suspend fun deleteDownload(id: String, filePath: String = "") {
+        AnindoApp.instance.downloadManager.deleteDownload(id, filePath)
     }
 }

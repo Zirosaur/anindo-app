@@ -178,9 +178,10 @@ fun DetailsScreen(
                                                                 posterUrl = currentAnime.posterUrl ?: "",
                                                                 episodeTitle = episode.title,
                                                                 episodeUrl = episode.url,
-                                                                videoStreamUrl = stream.url
+                                                                videoStreamUrl = stream.url,
+                                                                referer = stream.referer ?: episode.url
                                                             )
-                                                            Toast.makeText(context, "Mulai mengunduh di latar belakang...", Toast.LENGTH_LONG).show()
+                                                            Toast.makeText(context, "Mulai mengunduh! Cek progres di tab Unduhan (Koleksi).", Toast.LENGTH_LONG).show()
                                                         } else {
                                                             Toast.makeText(context, "Gagal mengunduh episode ini", Toast.LENGTH_SHORT).show()
                                                         }

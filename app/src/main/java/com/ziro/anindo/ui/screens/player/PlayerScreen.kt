@@ -164,30 +164,41 @@ fun PlayerScreen(
     val resizeLabels = remember { listOf("Fit", "Zoom", "Stretch") }
 
     val exoPlayer = remember(streamUrl) {
-        val headers = mutableMapOf(
-            "User-Agent" to NetworkClient.USER_AGENT
-        )
-        if (referer.isNotBlank()) {
-            headers["Referer"] = referer
-        } else if (streamUrl.contains("desustream") || streamUrl.contains("odcdn") || streamUrl.contains("odcloud")) {
-            headers["Referer"] = "https://desustream.net/"
+        val isLocalFile = !streamUrl.startsWith("http://", ignoreCase = true) && !streamUrl.startsWith("https://", ignoreCase = true)
+        val mediaUri = if (isLocalFile) {
+            val file = java.io.File(streamUrl)
+            android.net.Uri.fromFile(file)
+        } else {
+            android.net.Uri.parse(streamUrl)
         }
 
-        val okHttpDataSourceFactory = OkHttpDataSource.Factory(NetworkClient.client)
-            .setUserAgent(NetworkClient.USER_AGENT)
-            .setDefaultRequestProperties(headers)
-
-        val mediaSourceFactory = DefaultMediaSourceFactory(context)
-            .setDataSourceFactory(okHttpDataSourceFactory)
-
-        ExoPlayer.Builder(context)
-            .setMediaSourceFactory(mediaSourceFactory)
-            .build().apply {
-                val mediaItem = MediaItem.fromUri(streamUrl)
-                setMediaItem(mediaItem)
-                prepare()
-                playWhenReady = true
+        val builder = ExoPlayer.Builder(context)
+        if (!isLocalFile) {
+            val headers = mutableMapOf(
+                "User-Agent" to NetworkClient.USER_AGENT
+            )
+            if (referer.isNotBlank()) {
+                headers["Referer"] = referer
+            } else if (streamUrl.contains("desustream") || streamUrl.contains("odcdn") || streamUrl.contains("odcloud")) {
+                headers["Referer"] = "https://desustream.net/"
             }
+
+            val okHttpDataSourceFactory = OkHttpDataSource.Factory(NetworkClient.client)
+                .setUserAgent(NetworkClient.USER_AGENT)
+                .setDefaultRequestProperties(headers)
+
+            val mediaSourceFactory = DefaultMediaSourceFactory(context)
+                .setDataSourceFactory(okHttpDataSourceFactory)
+
+            builder.setMediaSourceFactory(mediaSourceFactory)
+        }
+
+        builder.build().apply {
+            val mediaItem = MediaItem.fromUri(mediaUri)
+            setMediaItem(mediaItem)
+            prepare()
+            playWhenReady = true
+        }
     }
 
     var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
@@ -219,7 +230,16 @@ fun PlayerScreen(
 
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 isBuffering = false
-                playbackError = error.message ?: "Gagal memutar video (${error.errorCodeName})"
+                val causeMsg = error.cause?.message ?: ""
+                val errText = when {
+                    error.errorCodeName.contains("NETWORK") || causeMsg.contains("Unable to connect", ignoreCase = true) ->
+                        "Koneksi jaringan gagal / server diblokir. Coba server mirror lain."
+                    error.errorCodeName.contains("SOURCE") || error.message?.contains("Source error", ignoreCase = true) == true ->
+                        "Server video tidak merespons atau format tidak didukung."
+                    else ->
+                        error.message ?: "Gagal memutar video (${error.errorCodeName})"
+                }
+                playbackError = errText
             }
         }
         exoPlayer.addListener(listener)

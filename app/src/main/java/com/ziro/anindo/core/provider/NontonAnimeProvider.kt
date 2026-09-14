@@ -102,10 +102,10 @@ class NontonAnimeProvider : BaseProvider() {
                         resolve = {
                             if (src.contains("putarin")) {
                                 val resolved = PutarinDecryptor.decrypt(src)
-                                StreamResult(url = resolved ?: src, referer = episode.url)
-                            } else {
-                                StreamResult(url = src, referer = episode.url)
-                            }
+                                if (resolved != null && (resolved.contains(".m3u8") || resolved.contains(".mp4") || !resolved.contains("/embed/"))) {
+                                    StreamResult(url = resolved, referer = episode.url)
+                                } else null
+                            } else null
                         }
                     )
                 )
