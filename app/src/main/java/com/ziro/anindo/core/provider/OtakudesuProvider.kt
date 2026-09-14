@@ -210,6 +210,7 @@ class OtakudesuProvider : BaseProvider() {
                         isHls = false,
                         resolve = {
                             resolveMirrorStream(
+                                base = base,
                                 epUrl = episode.url,
                                 dataB64 = dataContent,
                                 mirrorName = serverName,
@@ -318,6 +319,7 @@ class OtakudesuProvider : BaseProvider() {
     }
 
     private fun resolveMirrorStream(
+        base: String,
         epUrl: String,
         dataB64: String,
         mirrorName: String,
@@ -325,7 +327,7 @@ class OtakudesuProvider : BaseProvider() {
     ): StreamResult? {
         if (actions.size < 2) return null
         return try {
-            val otakudesuBase = getBaseUrl()
+            val otakudesuBase = base
             val ajaxUrl = "${otakudesuBase.trimEnd('/')}/wp-admin/admin-ajax.php"
 
             // 1. In anindo CLI: actions[1] is nonce action
