@@ -6,25 +6,36 @@ import com.ziro.anindo.core.model.StreamCandidate
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import java.util.concurrent.ConcurrentHashMap
 
 object ProviderRegistry {
-    private val providers = mutableMapOf<String, BaseProvider>()
+    private val providers = ConcurrentHashMap<String, BaseProvider>()
 
     init {
-        register(OtakudesuProvider())
-        register(NontonAnimeProvider())
+        val otakudesu = OtakudesuProvider()
+        val nontonAnime = NontonAnimeProvider()
+        register(otakudesu)
+        register(nontonAnime, "nontonanimeid")
     }
 
-    fun register(provider: BaseProvider) {
-        providers[provider.name] = provider
+    fun register(provider: BaseProvider, vararg aliases: String) {
+        providers[provider.name.lowercase()] = provider
+        aliases.forEach { alias ->
+            providers[alias.lowercase()] = provider
+        }
     }
 
-    fun get(name: String): BaseProvider? = providers[name]
+    fun get(name: String): BaseProvider? {
+        return providers[name.lowercase()]
+    }
 
-    fun all(): List<BaseProvider> = providers.values.toList()
+    fun all(): List<BaseProvider> {
+        return providers.values.distinctBy { it.name }.toList()
+    }
 
     suspend fun searchAll(query: String): List<Anime> = coroutineScope {
-        val tasks = providers.values.map { p ->
+        val uniqueProviders = all()
+        val tasks = uniqueProviders.map { p ->
             async {
                 try {
                     p.search(query)
@@ -46,7 +57,7 @@ object ProviderRegistry {
         epNum: Float,
         excludeProvider: String
     ): Pair<Episode?, List<StreamCandidate>> {
-        val alternates = providers.values.filter { it.name != excludeProvider }
+        val alternates = all().filter { it.name.lowercase() != excludeProvider.lowercase() }
         for (alt in alternates) {
             try {
                 val searchMatches = alt.search(animeTitle)

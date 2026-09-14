@@ -54,17 +54,35 @@ fun OngoingScreen(
                 }
             }
             is OngoingUiState.Success -> {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 130.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(bottom = 80.dp)
-                ) {
-                    items(state.list) { anime ->
-                        AnimeCard(anime = anime, onClick = { onAnimeClick(anime) })
+                if (state.list.isEmpty()) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Tidak ada anime on-going yang ditemukan.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(onClick = { viewModel.loadOngoing() }) {
+                            Text("Muat Ulang")
+                        }
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 130.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(bottom = 80.dp)
+                    ) {
+                        items(state.list) { anime ->
+                            AnimeCard(anime = anime, onClick = { onAnimeClick(anime) })
+                        }
                     }
                 }
             }
+
             is OngoingUiState.Error -> {
                 Column(
                     modifier = Modifier.fillMaxSize(),

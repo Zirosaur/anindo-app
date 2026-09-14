@@ -14,12 +14,13 @@ class ProviderRegistryTest {
 
         val otakudesu = ProviderRegistry.get("otakudesu")
         assertNotNull(otakudesu)
-        assertEquals("Otakudesu", otakudesu?.name)
+        assertEquals("otakudesu", otakudesu?.name)
 
         val nontonAnime = ProviderRegistry.get("nontonanimeid")
         assertNotNull(nontonAnime)
-        assertEquals("NontonAnimeID", nontonAnime?.name)
+        assertEquals("nontonanime", nontonAnime?.name)
     }
+
 
     @Test
     fun testProviderNamesCaseInsensitive() {

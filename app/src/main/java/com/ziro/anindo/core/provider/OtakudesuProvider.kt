@@ -24,16 +24,19 @@ class OtakudesuProvider : BaseProvider() {
         val encQuery = URLEncoder.encode(query, StandardCharsets.UTF_8.toString())
         val searchUrl = "$base/?s=$encQuery&post_type=anime"
         val html = NetworkClient.get(searchUrl, referer = base)
-        val doc = Jsoup.parse(html)
+        val doc = Jsoup.parse(html, base)
         val results = mutableListOf<Anime>()
 
-        val items = doc.select("ul.chivsrc li, .page .venser .page li")
+        val items = doc.select("ul.chivsrc li, .page .venser .page li, .chivsrc li")
         for (item in items) {
             val a = item.selectFirst("h2 a, a") ?: continue
-            val href = a.attr("abs:href")
+            val rawHref = a.attr("href").ifBlank { a.attr("abs:href") }
+            val href = if (rawHref.startsWith("http")) rawHref else "$base/${rawHref.trimStart('/')}"
             val title = a.text().trim()
-            val img = item.selectFirst("img")?.attr("abs:src")
-            val status = item.selectFirst(".set:contains(Status)")?.text()
+            val imgEl = item.selectFirst("img")
+            val rawImg = (imgEl?.attr("src") ?: "").ifBlank { imgEl?.attr("data-src") ?: "" }
+            val img = if (rawImg.startsWith("http")) rawImg else if (rawImg.isNotBlank()) "$base/${rawImg.trimStart('/')}" else null
+            val status = item.selectFirst(".set:contains(Status)")?.text()?.replace("Status :", "")?.trim()
 
             if (title.isNotBlank() && href.isNotBlank()) {
                 results.add(
@@ -53,49 +56,75 @@ class OtakudesuProvider : BaseProvider() {
     override suspend fun getEpisodes(animeUrl: String): List<Episode> = withContext(Dispatchers.IO) {
         val base = getBaseUrl()
         val html = NetworkClient.get(animeUrl, referer = base)
-        val doc = Jsoup.parse(html)
+        val doc = Jsoup.parse(html, base)
         val episodes = mutableListOf<Episode>()
 
-        val links = doc.select(".episodelst ul li a, #rightlist ul li a")
+        val links = doc.select(".episodelst ul li a, #rightlist ul li a, .episodelst a")
         for (link in links) {
-            val href = link.attr("abs:href")
+            val rawHref = link.attr("href").ifBlank { link.attr("abs:href") }
+            val href = if (rawHref.startsWith("http")) rawHref else "$base/${rawHref.trimStart('/')}"
             val title = link.text().trim()
             if (href.contains("/episode/")) {
-                val numMatch = Regex("""\b(?:episode|ep)\s*(\d+(?:\.\d+)?)""", RegexOption.IGNORE_CASE).find(title)
-                val epNum = numMatch?.groupValues?.get(1)?.toFloatOrNull() ?: 1.0f
-                episodes.add(Episode(title = title, epNum = epNum, url = href))
+                // Parse episode number
+                val epMatch = Regex("""(?i)(?:ep|episode)\s*(\d+)""").find(title)
+                val epNum = epMatch?.groupValues?.get(1)?.toFloatOrNull() ?: 1f
+
+                episodes.add(
+                    Episode(
+                        title = title,
+                        url = href,
+                        epNum = epNum
+                    )
+                )
             }
         }
-        episodes.sortedBy { it.epNum }
+        episodes
     }
 
     override suspend fun extractStreams(episode: Episode): List<StreamCandidate> = withContext(Dispatchers.IO) {
         val base = getBaseUrl()
         val html = NetworkClient.get(episode.url, referer = base)
-        val doc = Jsoup.parse(html)
+        val doc = Jsoup.parse(html, base)
         val candidates = mutableListOf<StreamCandidate>()
 
-        // 1. Check primary iframe embed
-        val primaryIframe = doc.selectFirst(".responsive-embed-stream iframe, .player-embed iframe")
-        val primarySrc = primaryIframe?.attr("abs:src")?.ifBlank { primaryIframe.attr("src") }
-        if (!primarySrc.isNullOrBlank()) {
-            candidates.add(
-                StreamCandidate(
-                    server = "Default Player",
-                    quality = "Auto HD",
-                    isHls = primarySrc.contains("m3u8") || primarySrc.contains("hls"),
-                    resolve = {
-                        StreamResult(url = primarySrc, referer = episode.url)
-                    }
+        // 1. Check direct iframe embeds (desustream, yourUpload, etc.)
+        val iframes = doc.select(".responsive-embed-stream iframe, .player-embed iframe, iframe[src*='desu'], iframe[src*='stream']")
+        for (iframe in iframes) {
+            val rawSrc = iframe.attr("src").ifBlank { iframe.attr("abs:src") }
+            val src = if (rawSrc.startsWith("//")) "https:$rawSrc" else rawSrc
+            if (src.isNotBlank()) {
+                val isPutarin = src.contains("putarin")
+                val isHls = src.contains("m3u8") || isPutarin
+                val srvName = when {
+                    isPutarin -> "Putarin (HLS)"
+                    src.contains("desu") -> "Desustream"
+                    src.contains("yourupload") -> "YourUpload"
+                    else -> "Stream VIP"
+                }
+
+                candidates.add(
+                    StreamCandidate(
+                        server = srvName,
+                        quality = "720p",
+                        isHls = isHls,
+                        resolve = {
+                            if (isPutarin) {
+                                val resolved = PutarinDecryptor.decrypt(src)
+                                StreamResult(url = resolved ?: src, referer = episode.url)
+                            } else {
+                                StreamResult(url = src, referer = episode.url)
+                            }
+                        }
+                    )
                 )
-            )
+            }
         }
 
-        // 2. Check mirror options
-        val mirrorElements = doc.select(".mirrorstream ul li a, .mirror ul li a")
-        for (m in mirrorElements) {
-            val serverName = m.text().trim()
-            val dataContent = m.attr("data-content")
+        // 2. Mirror stream options
+        val mirrorLinks = doc.select(".mirrorstream ul li a")
+        for (link in mirrorLinks) {
+            val dataContent = link.attr("data-content")
+            val serverName = link.text().trim()
             if (dataContent.isNotBlank()) {
                 candidates.add(
                     StreamCandidate(
@@ -103,7 +132,6 @@ class OtakudesuProvider : BaseProvider() {
                         quality = "Mirror",
                         isHls = false,
                         resolve = {
-                            // Resolve mirror link via Otakudesu action_mirror endpoint
                             StreamResult(url = dataContent, referer = episode.url)
                         }
                     )
@@ -117,15 +145,18 @@ class OtakudesuProvider : BaseProvider() {
         val base = getBaseUrl()
         val ongoingUrl = "$base/ongoing-anime/"
         val html = NetworkClient.get(ongoingUrl, referer = base)
-        val doc = Jsoup.parse(html)
+        val doc = Jsoup.parse(html, base)
         val results = mutableListOf<Anime>()
 
-        val items = doc.select(".venz ul li, .rapi ul li")
+        val items = doc.select(".venz ul li, .rapi ul li, .venz li, .rapi li")
         for (item in items) {
             val a = item.selectFirst(".thumb a, h2 a, a") ?: continue
-            val href = a.attr("abs:href")
-            val title = item.selectFirst(".jdlflm, h2")?.text()?.trim() ?: a.text().trim()
-            val img = item.selectFirst(".thumb img, img")?.attr("abs:src")
+            val rawHref = a.attr("href").ifBlank { a.attr("abs:href") }
+            val href = if (rawHref.startsWith("http")) rawHref else "$base/${rawHref.trimStart('/')}"
+            val title = item.selectFirst(".jdlflm, h2, .title")?.text()?.trim() ?: a.text().trim()
+            val imgEl = item.selectFirst(".thumb img, img")
+            val rawImg = (imgEl?.attr("src") ?: "").ifBlank { imgEl?.attr("data-src") ?: "" }
+            val img = if (rawImg.startsWith("http")) rawImg else if (rawImg.isNotBlank()) "$base/${rawImg.trimStart('/')}" else null
             val epInfo = item.selectFirst(".epz")?.text()?.trim()
 
             if (title.isNotBlank() && href.isNotBlank()) {

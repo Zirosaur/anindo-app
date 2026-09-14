@@ -24,15 +24,18 @@ class NontonAnimeProvider : BaseProvider() {
         val encQuery = URLEncoder.encode(query, StandardCharsets.UTF_8.toString())
         val searchUrl = "$base/?s=$encQuery"
         val html = NetworkClient.get(searchUrl, referer = base)
-        val doc = Jsoup.parse(html)
+        val doc = Jsoup.parse(html, base)
         val results = mutableListOf<Anime>()
 
-        val items = doc.select("article.animeseries, .relat article, .result ul li")
+        val items = doc.select("article.animeseries, .relat article, .result ul li, article")
         for (item in items) {
             val a = item.selectFirst("a[href*='/anime/'], h2 a, a") ?: continue
-            val href = a.attr("abs:href")
+            val rawHref = a.attr("href").ifBlank { a.attr("abs:href") }
+            val href = if (rawHref.startsWith("http")) rawHref else "$base/${rawHref.trimStart('/')}"
             val title = item.selectFirst(".title, h2, h3")?.text()?.trim() ?: a.text().trim()
-            val img = item.selectFirst("img")?.attr("abs:src")
+            val imgEl = item.selectFirst("img")
+            val rawImg = (imgEl?.attr("src") ?: "").ifBlank { imgEl?.attr("data-src") ?: "" }
+            val img = if (rawImg.startsWith("http")) rawImg else if (rawImg.isNotBlank()) "$base/${rawImg.trimStart('/')}" else null
             val type = item.selectFirst(".type, .status")?.text()?.trim()
 
             if (title.isNotBlank() && href.isNotBlank()) {
@@ -53,12 +56,13 @@ class NontonAnimeProvider : BaseProvider() {
     override suspend fun getEpisodes(animeUrl: String): List<Episode> = withContext(Dispatchers.IO) {
         val base = getBaseUrl()
         val html = NetworkClient.get(animeUrl, referer = base)
-        val doc = Jsoup.parse(html)
+        val doc = Jsoup.parse(html, base)
         val episodes = mutableListOf<Episode>()
 
-        val links = doc.select(".episodelist ul li a, ul.episodes li a")
+        val links = doc.select(".episodelist ul li a, ul.episodes li a, .episodes a")
         for (link in links) {
-            val href = link.attr("abs:href")
+            val rawHref = link.attr("href").ifBlank { link.attr("abs:href") }
+            val href = if (rawHref.startsWith("http")) rawHref else "$base/${rawHref.trimStart('/')}"
             val title = link.text().trim()
             if (href.isNotBlank()) {
                 val numMatch = Regex("""\b(?:episode|ep)\s*(\d+(?:\.\d+)?)""", RegexOption.IGNORE_CASE).find(title)
@@ -72,12 +76,13 @@ class NontonAnimeProvider : BaseProvider() {
     override suspend fun extractStreams(episode: Episode): List<StreamCandidate> = withContext(Dispatchers.IO) {
         val base = getBaseUrl()
         val html = NetworkClient.get(episode.url, referer = base)
-        val doc = Jsoup.parse(html)
+        val doc = Jsoup.parse(html, base)
         val candidates = mutableListOf<StreamCandidate>()
 
         val iframes = doc.select(".video-content iframe, iframe[src*='putarin'], iframe[src*='filedon']")
         for (iframe in iframes) {
-            val src = iframe.attr("abs:src").ifBlank { iframe.attr("src") }
+            val rawSrc = iframe.attr("src").ifBlank { iframe.attr("abs:src") }
+            val src = if (rawSrc.startsWith("//")) "https:$rawSrc" else rawSrc
             if (src.isNotBlank()) {
                 val srvName = when {
                     src.contains("putarin") -> "Putarin (HLS)"
@@ -101,30 +106,38 @@ class NontonAnimeProvider : BaseProvider() {
 
     override suspend fun getOngoing(): List<Anime> = withContext(Dispatchers.IO) {
         val base = getBaseUrl()
-        val ongoingUrl = "$base/ongoing/"
-        val html = NetworkClient.get(ongoingUrl, referer = base)
-        val doc = Jsoup.parse(html)
+        val ongoingUrls = listOf("$base/ongoing-bajzxqv/", "$base/ongoing/")
         val results = mutableListOf<Anime>()
 
-        val items = doc.select("article.animeseries, .content article")
-        for (item in items) {
-            val a = item.selectFirst("a[href*='/anime/'], a") ?: continue
-            val href = a.attr("abs:href")
-            val title = item.selectFirst(".title, h2")?.text()?.trim() ?: a.text().trim()
-            val img = item.selectFirst("img")?.attr("abs:src")
-            val ep = item.selectFirst(".epx, .episode")?.text()?.trim()
+        for (u in ongoingUrls) {
+            try {
+                val html = NetworkClient.get(u, referer = base)
+                val doc = Jsoup.parse(html, base)
+                val items = doc.select("article.animeseries, .content article, article")
+                for (item in items) {
+                    val a = item.selectFirst("a[href*='/anime/'], a") ?: continue
+                    val rawHref = a.attr("href").ifBlank { a.attr("abs:href") }
+                    val href = if (rawHref.startsWith("http")) rawHref else "$base/${rawHref.trimStart('/')}"
+                    val title = item.selectFirst(".title, h2")?.text()?.trim() ?: a.text().trim()
+                    val imgEl = item.selectFirst("img")
+                    val rawImg = (imgEl?.attr("src") ?: "").ifBlank { imgEl?.attr("data-src") ?: "" }
+                    val img = if (rawImg.startsWith("http")) rawImg else if (rawImg.isNotBlank()) "$base/${rawImg.trimStart('/')}" else null
+                    val ep = item.selectFirst(".epx, .episode")?.text()?.trim()
 
-            if (title.isNotBlank() && href.isNotBlank()) {
-                results.add(
-                    Anime(
-                        title = title,
-                        url = href,
-                        posterUrl = img,
-                        provider = name,
-                        status = ep ?: "Ongoing"
-                    )
-                )
-            }
+                    if (title.isNotBlank() && href.isNotBlank()) {
+                        results.add(
+                            Anime(
+                                title = title,
+                                url = href,
+                                posterUrl = img,
+                                provider = name,
+                                status = ep ?: "Ongoing"
+                            )
+                        )
+                    }
+                }
+                if (results.isNotEmpty()) break
+            } catch (_: Exception) {}
         }
         results
     }

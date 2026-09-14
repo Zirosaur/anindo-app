@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ziro.anindo.core.model.Anime
 import com.ziro.anindo.core.provider.ProviderRegistry
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,9 +37,10 @@ class ExploreViewModel : ViewModel() {
             return
         }
 
-        searchJob = viewModelScope.launch {
+        searchJob = viewModelScope.launch(Dispatchers.IO) {
             delay(500) // Debounce search
             _uiState.value = ExploreUiState.Loading
+
             try {
                 val results = ProviderRegistry.searchAll(newQuery)
                 if (results.isEmpty()) {

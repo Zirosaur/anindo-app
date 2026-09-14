@@ -55,9 +55,10 @@ class DetailsViewModel : ViewModel() {
             }
         }
 
-        viewModelScope.launch {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
                 val provider = ProviderRegistry.get(providerName) ?: ProviderRegistry.all().first()
+
                 val episodes = provider.getEpisodes(animeUrl)
                 if (episodes.isEmpty()) {
                     _uiState.value = DetailsUiState.Error("Daftar episode tidak ditemukan.")

@@ -10,12 +10,14 @@ object NetworkClient {
     const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
     val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
+        .dns(DohDns())
+        .connectTimeout(12, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .writeTimeout(12, TimeUnit.SECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
         .build()
+
 
     fun get(url: String, referer: String? = null, headers: Map<String, String> = emptyMap()): String {
         val reqBuilder = Request.Builder()
