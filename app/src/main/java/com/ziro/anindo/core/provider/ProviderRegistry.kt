@@ -39,12 +39,37 @@ object ProviderRegistry {
             async {
                 try {
                     p.search(query)
-                } catch (_: Exception) {
+                } catch (e: Exception) {
                     emptyList()
                 }
             }
         }
         tasks.awaitAll().flatten()
+    }
+
+    /**
+     * Cross-Provider Episodes List Fallback:
+     * If provider A returns empty episode list, search alternate providers for the anime
+     * and retrieve episodes from an alternate provider.
+     */
+    suspend fun findCrossProviderEpisodes(
+        animeTitle: String,
+        excludeProvider: String
+    ): Pair<String, List<Episode>> {
+        val alternates = all().filter { it.name.lowercase() != excludeProvider.lowercase() }
+        for (alt in alternates) {
+            try {
+                val searchMatches = alt.search(animeTitle)
+                val targetAnime = searchMatches.firstOrNull() ?: continue
+                val eps = alt.getEpisodes(targetAnime.url)
+                if (eps.isNotEmpty()) {
+                    return Pair(alt.name, eps)
+                }
+            } catch (e: Exception) {
+                // Try next provider
+            }
+        }
+        return Pair("", emptyList())
     }
 
     /**
@@ -68,7 +93,7 @@ object ProviderRegistry {
                 if (streams.isNotEmpty()) {
                     return Pair(matchedEp, streams)
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 // Try next provider
             }
         }

@@ -59,16 +59,20 @@ class NontonAnimeProvider : BaseProvider() {
         val html = NetworkClient.get(animeUrl, referer = base)
         val doc = Jsoup.parse(html, base)
         val episodes = mutableListOf<Episode>()
+        val seenUrls = mutableSetOf<String>()
 
-        val links = doc.select(".episodelist ul li a, ul.episodes li a, .episodes a")
+        val links = doc.select(".episodelist ul li a, ul.episodes li a, .episodes a, .eplister ul li a, a[href*='/nonton/'], a[href*='/episode/']")
         for (link in links) {
             val rawHref = link.attr("href").ifBlank { link.attr("abs:href") }
             val href = if (rawHref.startsWith("http")) rawHref else "$base/${rawHref.trimStart('/')}"
             val title = link.text().trim()
-            if (href.isNotBlank()) {
+            if (href.isNotBlank() && !seenUrls.contains(href) && (href.contains("/nonton/") || href.contains("/episode/"))) {
+                seenUrls.add(href)
                 val numMatch = Regex("""\b(?:episode|ep)\s*(\d+(?:\.\d+)?)""", RegexOption.IGNORE_CASE).find(title)
+                    ?: Regex("""episode-(\d+(?:\.\d+)?)""", RegexOption.IGNORE_CASE).find(href)
                 val epNum = numMatch?.groupValues?.get(1)?.toFloatOrNull() ?: 1.0f
-                episodes.add(Episode(title = title, epNum = epNum, url = href))
+                val cleanTitle = if (title.isNotBlank()) title else "Episode $epNum"
+                episodes.add(Episode(title = cleanTitle, epNum = epNum, url = href))
             }
         }
         episodes.sortedBy { it.epNum }

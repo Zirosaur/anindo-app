@@ -14,8 +14,8 @@ android {
         applicationId = "com.ziro.anindo"
         minSdk = 24
         targetSdk = 34
-        versionCode = 4
-        versionName = "0.1.3-beta"
+        versionCode = 5
+        versionName = "0.1.4-beta"
 
 
 
@@ -26,13 +26,26 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("anindo-release.jks")
+            storePassword = "anindo123"
+            keyAlias = "anindo"
+            keyPassword = "anindo123"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        debug {
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 

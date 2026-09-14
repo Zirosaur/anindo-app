@@ -44,7 +44,7 @@ class DetailsViewModel : ViewModel() {
                         _isBookmarked.value = bookmarked
                     }
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) {}
         }
 
         viewModelScope.launch {
@@ -59,14 +59,42 @@ class DetailsViewModel : ViewModel() {
             try {
                 val provider = ProviderRegistry.get(providerName) ?: ProviderRegistry.all().first()
 
-                val episodes = provider.getEpisodes(animeUrl)
+                var episodes = provider.getEpisodes(animeUrl)
+                if (episodes.isEmpty() && currentAnime != null && currentAnime!!.title.isNotBlank()) {
+                    val cleanTitle = currentAnime!!.title
+                        .replace(Regex("""(?i)\(ongoing\)"""), "")
+                        .replace(Regex("""\[.*?\]"""), "")
+                        .trim()
+                    val (_, altEps) = ProviderRegistry.findCrossProviderEpisodes(cleanTitle, providerName)
+                    if (altEps.isNotEmpty()) {
+                        episodes = altEps
+                    }
+                }
+
                 if (episodes.isEmpty()) {
                     _uiState.value = DetailsUiState.Error("Daftar episode tidak ditemukan.")
                 } else {
                     _uiState.value = DetailsUiState.Success(episodes)
                 }
             } catch (e: Exception) {
-                _uiState.value = DetailsUiState.Error(e.localizedMessage ?: "Gagal memuat episode")
+                // If primary failed with exception, attempt failover
+                var altFound = false
+                if (currentAnime != null && currentAnime!!.title.isNotBlank()) {
+                    try {
+                        val cleanTitle = currentAnime!!.title
+                            .replace(Regex("""(?i)\(ongoing\)"""), "")
+                            .replace(Regex("""\[.*?\]"""), "")
+                            .trim()
+                        val (_, altEps) = ProviderRegistry.findCrossProviderEpisodes(cleanTitle, providerName)
+                        if (altEps.isNotEmpty()) {
+                            _uiState.value = DetailsUiState.Success(altEps)
+                            altFound = true
+                        }
+                    } catch (e2: Exception) {}
+                }
+                if (!altFound) {
+                    _uiState.value = DetailsUiState.Error(e.localizedMessage ?: "Gagal memuat episode")
+                }
             }
         }
     }

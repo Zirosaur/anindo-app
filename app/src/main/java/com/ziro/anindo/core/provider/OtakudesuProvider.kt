@@ -61,26 +61,44 @@ class OtakudesuProvider : BaseProvider() {
         val doc = Jsoup.parse(html, base)
         val episodes = mutableListOf<Episode>()
 
-        val links = doc.select(".episodelst ul li a, #rightlist ul li a, .episodelst a")
+        // Otakudesu uses .episodelist, .venser, or direct episode links
+        val links = doc.select(".episodelist ul li a, .venser ul li a, div[class*='episode'] a, a[href*='/episode/']")
+        val seenUrls = mutableSetOf<String>()
+
         for (link in links) {
             val rawHref = link.attr("href").ifBlank { link.attr("abs:href") }
             val href = if (rawHref.startsWith("http")) rawHref else "$base/${rawHref.trimStart('/')}"
-            val title = link.text().trim()
-            if (href.contains("/episode/")) {
-                // Parse episode number
-                val epMatch = Regex("""(?i)(?:ep|episode)\s*(\d+)""").find(title)
-                val epNum = epMatch?.groupValues?.get(1)?.toFloatOrNull() ?: 1f
+            val rawTitle = link.text().trim()
 
-                episodes.add(
-                    Episode(
-                        title = title,
-                        url = href,
-                        epNum = epNum
-                    )
-                )
+            // Filter out duplicates and non-episode divider links (e.g. pembatas)
+            if (!href.contains("/episode/") || seenUrls.contains(href) ||
+                rawTitle.contains("pembatas", ignoreCase = true) || href.contains("pembatas", ignoreCase = true)
+            ) {
+                continue
             }
+            seenUrls.add(href)
+
+            val title = if (rawTitle.isNotBlank()) {
+                rawTitle.replace("Subtitle Indonesia", "").replace("Sub Indo", "").trim()
+            } else {
+                "Episode"
+            }
+
+            // Parse episode number
+            val numMatch = Regex("""(?i)(?:episode|ep)\s*(\d+(?:\.\d+)?)""").find(rawTitle)
+                ?: Regex("""(?i)episode-(\d+(?:\.\d+)?)""").find(href)
+            val epNum = numMatch?.groupValues?.get(1)?.toFloatOrNull() ?: 1f
+
+            episodes.add(
+                Episode(
+                    title = if (title.isBlank()) "Episode $epNum" else title,
+                    url = href,
+                    epNum = epNum
+                )
+            )
         }
-        episodes
+        // Otakudesu defaults to newest first; sort ascending so Episode 1 is on top
+        episodes.sortedBy { it.epNum }
     }
 
     override suspend fun extractStreams(episode: Episode): List<StreamCandidate> = withContext(Dispatchers.IO) {
@@ -89,17 +107,18 @@ class OtakudesuProvider : BaseProvider() {
         val doc = Jsoup.parse(html, base)
         val candidates = mutableListOf<StreamCandidate>()
 
-        // 1. Check direct iframe embeds (desustream, yourUpload, etc.)
-        val iframes = doc.select(".responsive-embed-stream iframe, .player-embed iframe, iframe[src*='desu'], iframe[src*='stream']")
+        // 1. Check direct iframe embeds (desustream, odcdn, putarin, etc.)
+        val iframes = doc.select(".responsive-embed-stream iframe, .player-embed iframe, iframe[src*='desu'], iframe[src*='stream'], iframe[src*='putarin']")
         for (iframe in iframes) {
             val rawSrc = iframe.attr("src").ifBlank { iframe.attr("abs:src") }
             val src = if (rawSrc.startsWith("//")) "https:$rawSrc" else rawSrc
             if (src.isNotBlank()) {
                 val isPutarin = src.contains("putarin")
+                val isDesu = src.contains("desustream") || src.contains("odcdn")
                 val isHls = src.contains("m3u8") || isPutarin
                 val srvName = when {
                     isPutarin -> "Putarin (HLS)"
-                    src.contains("desu") -> "Desustream"
+                    isDesu -> "ODCloud / Desustream (HD)"
                     src.contains("yourupload") -> "YourUpload"
                     else -> "Stream VIP"
                 }
@@ -110,11 +129,27 @@ class OtakudesuProvider : BaseProvider() {
                         quality = "720p",
                         isHls = isHls,
                         resolve = {
-                            if (isPutarin) {
-                                val resolved = PutarinDecryptor.decrypt(src)
-                                StreamResult(url = resolved ?: src, referer = episode.url)
-                            } else {
-                                StreamResult(url = src, referer = episode.url)
+                            when {
+                                isPutarin -> {
+                                    val resolved = PutarinDecryptor.decrypt(src)
+                                    StreamResult(url = resolved ?: src, referer = episode.url)
+                                }
+                                isDesu -> {
+                                    try {
+                                        val ifrHtml = NetworkClient.get(src, referer = episode.url)
+                                        val vMatch = Regex("""videoURL\s*=\s*["']([^"']+)["']""").find(ifrHtml)
+                                        if (vMatch != null) {
+                                            StreamResult(url = vMatch.groupValues[1], referer = src)
+                                        } else {
+                                            StreamResult(url = src, referer = episode.url)
+                                        }
+                                    } catch (e: Exception) {
+                                        StreamResult(url = src, referer = episode.url)
+                                    }
+                                }
+                                else -> {
+                                    StreamResult(url = src, referer = episode.url)
+                                }
                             }
                         }
                     )
@@ -122,7 +157,30 @@ class OtakudesuProvider : BaseProvider() {
             }
         }
 
-        // 2. Mirror stream options
+        // 2. Download section mirrors (Filedon, Pixeldrain, etc.)
+        val downloadItems = doc.select(".download ul li")
+        for (item in downloadItems) {
+            val qText = item.selectFirst("strong")?.text()?.trim() ?: "720p"
+            val links = item.select("a")
+            for (link in links) {
+                val hostName = link.text().trim()
+                val href = link.attr("href").ifBlank { link.attr("abs:href") }
+                if (href.isNotBlank() && (hostName.contains("Filedon", ignoreCase = true) || hostName.contains("Pdrain", ignoreCase = true) || hostName.contains("Pixeldrain", ignoreCase = true))) {
+                    candidates.add(
+                        StreamCandidate(
+                            server = hostName,
+                            quality = qText,
+                            isHls = false,
+                            resolve = {
+                                StreamResult(url = href, referer = episode.url)
+                            }
+                        )
+                    )
+                }
+            }
+        }
+
+        // 3. Mirror stream options
         val mirrorLinks = doc.select(".mirrorstream ul li a")
         for (link in mirrorLinks) {
             val dataContent = link.attr("data-content")

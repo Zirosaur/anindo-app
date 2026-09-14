@@ -95,8 +95,7 @@ class MainActivity : ComponentActivity() {
                                             animeUrl = anime.url,
                                             title = anime.title,
                                             poster = anime.posterUrl ?: "",
-                                            provider = "otakudesu"
-
+                                            provider = anime.provider.lowercase().ifBlank { "otakudesu" }
                                         )
                                     )
                                 }
@@ -157,11 +156,11 @@ class MainActivity : ComponentActivity() {
                             val encPoster = backStackEntry.arguments?.getString("poster") ?: ""
                             val encProvider = backStackEntry.arguments?.getString("provider") ?: "otakudesu"
 
-                            val animeUrl = URLDecoder.decode(encUrl, "UTF-8")
-                            val animeId = URLDecoder.decode(encId, "UTF-8")
-                            val animeTitle = URLDecoder.decode(encTitle, "UTF-8")
-                            val posterUrl = URLDecoder.decode(encPoster, "UTF-8")
-                            val provider = URLDecoder.decode(encProvider, "UTF-8")
+                            val animeUrl = try { URLDecoder.decode(encUrl, "UTF-8") } catch (e: Exception) { encUrl }
+                            val animeId = try { URLDecoder.decode(encId, "UTF-8") } catch (e: Exception) { encId }
+                            val animeTitle = try { URLDecoder.decode(encTitle, "UTF-8") } catch (e: Exception) { encTitle }
+                            val posterUrl = try { URLDecoder.decode(encPoster, "UTF-8") } catch (e: Exception) { encPoster }
+                            val provider = try { URLDecoder.decode(encProvider, "UTF-8") } catch (e: Exception) { encProvider }
 
                             DetailsScreen(
                                 animeUrl = animeUrl,
