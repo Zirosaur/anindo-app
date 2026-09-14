@@ -7,6 +7,13 @@ import android.media.AudioManager
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.annotation.OptIn
+import android.content.BroadcastReceiver
+import android.content.Intent
+import android.content.IntentFilter
+import android.view.WindowManager
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -111,10 +118,13 @@ fun PlayerScreen(
     val repository = AnindoApp.instance.repository
     val scope = rememberCoroutineScope()
 
-    // Enforce Landscape orientation and hide system bars while in PlayerScreen
+    // Enforce Landscape orientation, keep screen awake, and hide system bars while in PlayerScreen
     DisposableEffect(Unit) {
         val originalOrientation = activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+
+        // Keep screen awake while watching video
+        activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         // Immersive sticky fullscreen mode
         activity?.window?.let { window ->
@@ -125,6 +135,7 @@ fun PlayerScreen(
 
         onDispose {
             activity?.requestedOrientation = originalOrientation
+            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             activity?.window?.let { window ->
                 val insetsController = WindowCompat.getInsetsController(window, window.decorView)
                 insetsController.show(WindowInsetsCompat.Type.systemBars())
@@ -281,6 +292,41 @@ fun PlayerScreen(
         }
     }
 
+    // Auto-pause video and audio when app is paused, screen turns off, or power button is pressed
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, exoPlayer) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
+                    if (exoPlayer.isPlaying) {
+                        exoPlayer.pause()
+                    }
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+
+        val screenOffReceiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context?, intent: Intent?) {
+                if (intent?.action == Intent.ACTION_SCREEN_OFF) {
+                    if (exoPlayer.isPlaying) {
+                        exoPlayer.pause()
+                    }
+                }
+            }
+        }
+        val filter = IntentFilter(Intent.ACTION_SCREEN_OFF)
+        context.registerReceiver(screenOffReceiver, filter)
+
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            try {
+                context.unregisterReceiver(screenOffReceiver)
+            } catch (_: Exception) {}
+        }
+    }
+
     // Periodic progress ticker and auto-save
     LaunchedEffect(exoPlayer) {
         var tickCounter = 0
@@ -395,6 +441,7 @@ fun PlayerScreen(
                     player = exoPlayer
                     useController = false // Custom overlay UI
                     resizeMode = resizeModes[resizeModeIndex]
+                    keepScreenOn = true
                     layoutParams = FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT

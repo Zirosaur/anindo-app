@@ -170,7 +170,7 @@ fun DetailsScreen(
                                                 onClick = {
                                                     scope.launch {
                                                         Toast.makeText(context, "Mengekstrak unduhan...", Toast.LENGTH_SHORT).show()
-                                                        val stream = viewModel.resolveStream(episode, providerName)
+                                                        val stream = viewModel.resolveDownloadStream(episode, providerName)
                                                         if (stream != null && stream.url.isNotBlank()) {
                                                             AnindoApp.instance.downloadManager.enqueueDownload(
                                                                 animeId = currentAnime.computedId,

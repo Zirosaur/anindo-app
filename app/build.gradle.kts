@@ -14,8 +14,8 @@ android {
         applicationId = "com.ziro.anindo"
         minSdk = 24
         targetSdk = 34
-        versionCode = 10
-        versionName = "0.1.9-beta"
+        versionCode = 11
+        versionName = "0.1.10-beta"
 
 
 

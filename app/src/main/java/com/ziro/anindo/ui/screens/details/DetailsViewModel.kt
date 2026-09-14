@@ -163,4 +163,54 @@ class DetailsViewModel : ViewModel() {
         Log.e("AnindoStream", "No working stream candidate found for ${episode.title}")
         null
     }
+
+    suspend fun resolveDownloadStream(episode: Episode, providerName: String): StreamResult? = withContext(Dispatchers.IO) {
+        val provider = ProviderRegistry.get(providerName) ?: ProviderRegistry.all().first()
+        val candidates = try {
+            provider.extractStreams(episode)
+        } catch (e: Exception) {
+            Log.e("AnindoStream", "Error extracting streams for download: ${e.message}", e)
+            emptyList()
+        }
+        Log.d("AnindoStream", "Found ${candidates.size} stream candidates for download: ${episode.title}")
+
+        // For downloading, prioritize direct MP4 candidates (!isHls) first
+        val sortedCandidates = candidates.sortedBy { if (it.isHls) 1 else 0 }
+
+        for (cand in sortedCandidates) {
+            try {
+                val result = cand.resolve()
+                if (result != null && result.url.isNotBlank()) {
+                    Log.d("AnindoStream", "Success resolving download stream from server: ${cand.server} (HLS: ${cand.isHls})")
+                    return@withContext result
+                }
+            } catch (e: Throwable) {
+                Log.e("AnindoStream", "Failed download candidate: ${cand.server}", e)
+            }
+        }
+
+        // Cross-Provider Fallback for download
+        Log.w("AnindoStream", "All primary download candidates failed for ${episode.title}, trying fallback")
+        val (_, fallbackStreams) = try {
+            ProviderRegistry.findCrossProviderFallback(episode.title, episode.epNum, providerName)
+        } catch (e: Exception) {
+            Pair(null, emptyList())
+        }
+
+        val sortedFallback = fallbackStreams.sortedBy { if (it.isHls) 1 else 0 }
+        for (cand in sortedFallback) {
+            try {
+                val result = cand.resolve()
+                if (result != null && result.url.isNotBlank()) {
+                    Log.d("AnindoStream", "Success resolving fallback download stream: ${cand.server}")
+                    return@withContext result
+                }
+            } catch (e: Throwable) {
+                Log.e("AnindoStream", "Failed fallback download candidate: ${cand.server}", e)
+            }
+        }
+        Log.e("AnindoStream", "No working download candidate found for ${episode.title}")
+        null
+    }
 }
+
