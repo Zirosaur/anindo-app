@@ -1,5 +1,6 @@
 package com.ziro.anindo.core.provider
 
+import android.util.Log
 import com.ziro.anindo.core.model.Anime
 import com.ziro.anindo.core.model.Episode
 import com.ziro.anindo.core.model.StreamCandidate
@@ -84,28 +85,37 @@ class NontonAnimeProvider : BaseProvider() {
         val doc = Jsoup.parse(html, base)
         val candidates = mutableListOf<StreamCandidate>()
 
-        val iframes = doc.select(".video-content iframe, iframe[src*='putarin'], iframe[src*='filedon']")
+        val iframes = doc.select(".video-content iframe, iframe[src*='putarin'], iframe[src*='puterin'], iframe[src*='filedon'], .player-embed iframe, iframe")
+        Log.d("AnindoStream", "NontonAnime found ${iframes.size} iframes on ${episode.url}")
+
         for (iframe in iframes) {
             val rawSrc = iframe.attr("src").ifBlank { iframe.attr("abs:src") }
             val src = if (rawSrc.startsWith("//")) "https:$rawSrc" else rawSrc
-            if (src.isNotBlank()) {
+            if (src.isNotBlank() && (src.contains("putarin") || src.contains("puterin") || src.contains("stream") || src.contains("filedon"))) {
                 val srvName = when {
-                    src.contains("putarin") -> "Putarin (HLS)"
+                    src.contains("putarin") || src.contains("puterin") -> "Putarin (HLS)"
                     src.contains("filedon") -> "Filedon (HD)"
                     else -> "Stream Server"
                 }
                 candidates.add(
                     StreamCandidate(
                         server = srvName,
-                        quality = "720p",
-                        isHls = src.contains("putarin") || src.contains("m3u8"),
+                        quality = "Adaptive HD",
+                        isHls = src.contains("putarin") || src.contains("puterin") || src.contains("m3u8"),
                         resolve = {
-                            if (src.contains("putarin")) {
-                                val resolved = PutarinDecryptor.decrypt(src)
-                                if (resolved != null && (resolved.contains(".m3u8") || resolved.contains(".mp4") || !resolved.contains("/embed/"))) {
-                                    StreamResult(url = resolved, referer = episode.url)
-                                } else null
-                            } else null
+                            withContext(Dispatchers.IO) {
+                                try {
+                                    if (src.contains("putarin") || src.contains("puterin")) {
+                                        val resolved = PutarinDecryptor.decrypt(src)
+                                        if (resolved != null && (resolved.contains(".m3u8") || resolved.contains(".mp4") || !resolved.contains("/embed/"))) {
+                                            StreamResult(url = resolved, referer = episode.url, isHls = true)
+                                        } else null
+                                    } else null
+                                } catch (e: Exception) {
+                                    Log.e("AnindoStream", "Error resolving NontonAnime candidate $src", e)
+                                    null
+                                }
+                            }
                         }
                     )
                 )

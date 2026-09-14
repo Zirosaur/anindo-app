@@ -1,5 +1,6 @@
 package com.ziro.anindo.core.provider.decryptor
 
+import android.util.Log
 import com.ziro.anindo.core.network.NetworkClient
 import org.json.JSONObject
 import java.net.URI
@@ -73,6 +74,7 @@ object PutarinDecryptor {
      */
     fun resolveEmbedUrl(embedUrl: String): String? {
         return try {
+            Log.d("AnindoStream", "Resolving Putarin embed: $embedUrl")
             val uri = URI(embedUrl)
             val host = uri.host ?: return null
             val html = NetworkClient.get(embedUrl, referer = "https://$host/")
@@ -93,7 +95,7 @@ object PutarinDecryptor {
                             key = kHex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
                         }
                     } catch (e: Exception) {
-                        // fallback to DEFAULT_KEY
+                        Log.w("AnindoStream", "Failed to fetch dynamic Putarin PK, using default key: ${e.message}")
                     }
                 }
 
@@ -106,13 +108,19 @@ object PutarinDecryptor {
                             if (filePath.startsWith("/")) {
                                 filePath = "https://$host$filePath"
                             }
+                            Log.d("AnindoStream", "Putarin stream decrypted successfully: $filePath")
                             return filePath
                         }
+                    } else {
+                        Log.w("AnindoStream", "Failed to decrypt Putarin payload (decryptPayload returned null)")
                     }
                 }
+            } else {
+                Log.w("AnindoStream", "No window.__PX found in Putarin page: $embedUrl")
             }
             null
         } catch (e: Exception) {
+            Log.e("AnindoStream", "Error resolving Putarin embed: ${e.message}", e)
             null
         }
     }

@@ -18,8 +18,8 @@ class DohDns : Dns {
 
     // Lightweight bootstrap OkHttpClient configured with system DNS to query DoH IP endpoints
     private val bootstrapClient = OkHttpClient.Builder()
-        .connectTimeout(5, TimeUnit.SECONDS)
-        .readTimeout(5, TimeUnit.SECONDS)
+        .connectTimeout(2, TimeUnit.SECONDS)
+        .readTimeout(2, TimeUnit.SECONDS)
         .build()
 
     override fun lookup(hostname: String): List<InetAddress> {

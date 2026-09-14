@@ -1,6 +1,7 @@
 package com.ziro.anindo.core.provider
 
 import android.util.Base64
+import android.util.Log
 import com.ziro.anindo.core.model.Anime
 import com.ziro.anindo.core.model.Episode
 import com.ziro.anindo.core.model.StreamCandidate
@@ -244,8 +245,8 @@ class OtakudesuProvider : BaseProvider() {
         candidates
     }
 
-    private fun curlRedirect(url: String, timeoutSec: Int = 5): String? {
-        return try {
+    private suspend fun curlRedirect(url: String, timeoutSec: Int = 5): String? = withContext(Dispatchers.IO) {
+        try {
             val req = Request.Builder()
                 .url(url)
                 .header("User-Agent", NetworkClient.USER_AGENT)
@@ -253,58 +254,111 @@ class OtakudesuProvider : BaseProvider() {
 
             val noRedirectClient = NetworkClient.client.newBuilder()
                 .followRedirects(false)
+                .followSslRedirects(false)
                 .build()
 
             noRedirectClient.newCall(req).execute().use { resp ->
-                resp.header("Location")
+                val loc = resp.header("Location") ?: resp.header("location")
+                if (!loc.isNullOrBlank()) {
+                    loc
+                } else if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    val m = Regex("""data-page="([^"]+)"""").find(body)
+                    if (m != null) {
+                        val unescaped = Parser.unescapeEntities(m.groupValues[1], false)
+                        JSONObject(unescaped).optJSONObject("props")?.optString("embed_url")
+                    } else null
+                } else null
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e("AnindoStream", "curlRedirect error for $url: ${e.message}")
             null
         }
     }
 
-    private fun resolveFiledon(rawHref: String): StreamResult? {
-        return try {
-            val loc = if (rawHref.contains("desustream") || rawHref.contains("link.desustream")) {
-                curlRedirect(rawHref, 5)
+    private suspend fun resolveFiledon(rawHref: String): StreamResult? = withContext(Dispatchers.IO) {
+        try {
+            Log.d("AnindoStream", "Resolving Filedon for: $rawHref")
+            var embedUrl: String? = null
+            if (rawHref.contains("/embed/")) {
+                embedUrl = rawHref
+            } else if (rawHref.contains("/view/")) {
+                embedUrl = rawHref.replace("/view/", "/embed/")
             } else {
-                rawHref
-            } ?: return null
+                val loc = curlRedirect(rawHref, 5)
+                Log.d("AnindoStream", "curlRedirect result: $loc")
+                if (!loc.isNullOrBlank()) {
+                    embedUrl = loc.replace("/view/", "/embed/")
+                }
+            }
 
-            val embedUrl = loc.replace("/view/", "/embed/")
-            val page = NetworkClient.get(embedUrl)
+            // Fetch embed or rawHref directly
+            val targetUrl = embedUrl ?: rawHref
+            val page = NetworkClient.get(targetUrl)
+
+            // 1. Try extracting direct R2 URL from data-page JSON
             val m = Regex("""data-page="([^"]+)"""").find(page)
             if (m != null) {
                 val unescaped = Parser.unescapeEntities(m.groupValues[1], false)
                 val json = JSONObject(unescaped)
-                val r2Url = json.optJSONObject("props")?.optString("url")
+                val props = json.optJSONObject("props")
+                var r2Url = props?.optString("url")
+                // If on /view/ page, props contains embed_url instead
+                if (r2Url.isNullOrBlank() && props?.has("embed_url") == true) {
+                    val secondaryEmbed = props.optString("embed_url")
+                    if (secondaryEmbed.isNotBlank()) {
+                        Log.d("AnindoStream", "Fetching secondary embed from props: $secondaryEmbed")
+                        val secondaryPage = NetworkClient.get(secondaryEmbed)
+                        val m2 = Regex("""data-page="([^"]+)"""").find(secondaryPage)
+                        if (m2 != null) {
+                            val unescaped2 = Parser.unescapeEntities(m2.groupValues[1], false)
+                            r2Url = JSONObject(unescaped2).optJSONObject("props")?.optString("url")
+                        }
+                    }
+                }
+
                 if (!r2Url.isNullOrBlank() && isDirectMediaUrl(r2Url)) {
-                    StreamResult(url = r2Url, referer = "")
-                } else null
-            } else null
-        } catch (_: Exception) {
+                    Log.d("AnindoStream", "Filedon R2 resolved: ${r2Url.take(60)}...")
+                    return@withContext StreamResult(url = r2Url, referer = "")
+                }
+            }
+
+            // 2. Direct regex search for cloudflarestorage.com or direct mp4 inside page
+            val directR2Match = Regex("""["'](https?://[^"']*?r2\.cloudflarestorage\.com[^"']*)["']""").find(page)
+                ?: Regex("""["'](https?://[^"']*?filedon\.co[^"']*?\.mp4[^"']*)["']""").find(page)
+            if (directR2Match != null) {
+                val foundUrl = Parser.unescapeEntities(directR2Match.groupValues[1], false)
+                Log.d("AnindoStream", "Filedon direct regex found: ${foundUrl.take(60)}...")
+                return@withContext StreamResult(url = foundUrl, referer = "")
+            }
+
+            Log.w("AnindoStream", "Failed to find direct media in Filedon page for $rawHref")
+            null
+        } catch (e: Exception) {
+            Log.e("AnindoStream", "Exception resolving Filedon: ${e.message}", e)
             null
         }
     }
 
-    private fun resolveYourUpload(embedUrl: String): StreamResult? {
-        return try {
+    private suspend fun resolveYourUpload(embedUrl: String): StreamResult? = withContext(Dispatchers.IO) {
+        try {
             val mId = Regex("""id=([A-Za-z0-9_-]+)""").find(embedUrl)
                 ?: Regex("""/embed/([A-Za-z0-9_-]+)""").find(embedUrl)
-            val yuId = mId?.groupValues?.get(1) ?: return null
+            val yuId = mId?.groupValues?.get(1) ?: return@withContext null
             val page = NetworkClient.get("https://yourupload.com/embed/$yuId", referer = "https://desudrive.com/")
             val vMatch = Regex("""file\s*:\s*['"](https?://[^'"]+\.mp4[^'"]*)['"]""").find(page)
                 ?: Regex("""property="og:video"\s+content="([^"]+)"""").find(page)
             if (vMatch != null && isDirectMediaUrl(vMatch.groupValues[1])) {
                 StreamResult(url = vMatch.groupValues[1], referer = "https://yourupload.com/")
             } else null
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e("AnindoStream", "resolveYourUpload error: ${e.message}")
             null
         }
     }
 
-    private fun resolvePixeldrain(rawHref: String): StreamResult? {
-        return try {
+    private suspend fun resolvePixeldrain(rawHref: String): StreamResult? = withContext(Dispatchers.IO) {
+        try {
             val loc = curlRedirect(rawHref, 5)
             if (!loc.isNullOrBlank() && loc.contains("pixeldrain.com/u/")) {
                 val fileId = loc.substringAfter("/u/").substringBefore("/").substringBefore("?").substringBefore("#").trim()
@@ -313,20 +367,21 @@ class OtakudesuProvider : BaseProvider() {
                     StreamResult(url = directUrl, referer = "")
                 } else null
             } else null
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e("AnindoStream", "resolvePixeldrain error: ${e.message}")
             null
         }
     }
 
-    private fun resolveMirrorStream(
+    private suspend fun resolveMirrorStream(
         base: String,
         epUrl: String,
         dataB64: String,
         mirrorName: String,
         actions: List<String>
-    ): StreamResult? {
-        if (actions.size < 2) return null
-        return try {
+    ): StreamResult? = withContext(Dispatchers.IO) {
+        if (actions.size < 2) return@withContext null
+        try {
             val otakudesuBase = base
             val ajaxUrl = "${otakudesuBase.trimEnd('/')}/wp-admin/admin-ajax.php"
 
@@ -348,7 +403,10 @@ class OtakudesuProvider : BaseProvider() {
 
             val nonceResStr = NetworkClient.client.newCall(nonceReq).execute().use { it.body?.string() ?: "" }
             val nonce = JSONObject(nonceResStr).optString("data", "")
-            if (nonce.isBlank()) return null
+            if (nonce.isBlank()) {
+                Log.w("AnindoStream", "Failed to get nonce for Otakudesu AJAX mirror")
+                return@withContext null
+            }
 
             // 2. Query mirror embed with actions[0]
             val decodedJson = String(Base64.decode(dataB64, Base64.DEFAULT), StandardCharsets.UTF_8)
@@ -372,10 +430,10 @@ class OtakudesuProvider : BaseProvider() {
 
             val resolveResStr = NetworkClient.client.newCall(resolveReq).execute().use { it.body?.string() ?: "" }
             val b64Html = JSONObject(resolveResStr).optString("data", "")
-            if (b64Html.isBlank()) return null
+            if (b64Html.isBlank()) return@withContext null
 
             val embedHtml = String(Base64.decode(b64Html, Base64.DEFAULT), StandardCharsets.UTF_8)
-            val srcMatch = Regex("""src=["']([^"']+)["']""").find(embedHtml) ?: return null
+            val srcMatch = Regex("""src=["']([^"']+)["']""").find(embedHtml) ?: return@withContext null
             val srcUrl = srcMatch.groupValues[1]
 
             val lowerName = mirrorName.lowercase()
@@ -394,7 +452,8 @@ class OtakudesuProvider : BaseProvider() {
                     if (direct != null) StreamResult(url = direct, referer = srcUrl) else null
                 }
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e("AnindoStream", "resolveMirrorStream error: ${e.message}", e)
             null
         }
     }

@@ -8,12 +8,15 @@ import com.ziro.anindo.core.model.Anime
 import com.ziro.anindo.core.model.Episode
 import com.ziro.anindo.core.model.StreamResult
 import com.ziro.anindo.core.provider.ProviderRegistry
+import android.util.Log
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 sealed class DetailsUiState {
     object Loading : DetailsUiState()
@@ -115,23 +118,49 @@ class DetailsViewModel : ViewModel() {
         }
     }
 
-    suspend fun resolveStream(episode: Episode, providerName: String): StreamResult? {
+    suspend fun resolveStream(episode: Episode, providerName: String): StreamResult? = withContext(Dispatchers.IO) {
         val provider = ProviderRegistry.get(providerName) ?: ProviderRegistry.all().first()
-        val candidates = provider.extractStreams(episode)
+        val candidates = try {
+            provider.extractStreams(episode)
+        } catch (e: Exception) {
+            Log.e("AnindoStream", "Error extracting streams from $providerName for ${episode.title}", e)
+            emptyList()
+        }
+        Log.d("AnindoStream", "Found ${candidates.size} stream candidates for ${episode.title} ($providerName)")
+
         for (cand in candidates) {
-            val result = cand.resolve()
-            if (result != null && result.url.isNotBlank()) {
-                return result
+            try {
+                val result = cand.resolve()
+                if (result != null && result.url.isNotBlank()) {
+                    Log.d("AnindoStream", "Success resolving stream from server: ${cand.server}")
+                    return@withContext result
+                }
+            } catch (e: Throwable) {
+                Log.e("AnindoStream", "Failed candidate: ${cand.server}", e)
             }
         }
+
         // Cross-Provider Fallback if primary fails
-        val (_, fallbackStreams) = ProviderRegistry.findCrossProviderFallback(episode.title, episode.epNum, providerName)
+        Log.w("AnindoStream", "All primary stream candidates failed for ${episode.title}, trying cross-provider fallback")
+        val (_, fallbackStreams) = try {
+            ProviderRegistry.findCrossProviderFallback(episode.title, episode.epNum, providerName)
+        } catch (e: Exception) {
+            Log.e("AnindoStream", "Error in cross-provider fallback", e)
+            Pair(null, emptyList())
+        }
+
         for (cand in fallbackStreams) {
-            val result = cand.resolve()
-            if (result != null && result.url.isNotBlank()) {
-                return result
+            try {
+                val result = cand.resolve()
+                if (result != null && result.url.isNotBlank()) {
+                    Log.d("AnindoStream", "Success resolving fallback stream from server: ${cand.server}")
+                    return@withContext result
+                }
+            } catch (e: Throwable) {
+                Log.e("AnindoStream", "Failed fallback candidate: ${cand.server}", e)
             }
         }
-        return null
+        Log.e("AnindoStream", "No working stream candidate found for ${episode.title}")
+        null
     }
 }

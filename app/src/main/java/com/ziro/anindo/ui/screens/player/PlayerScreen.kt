@@ -194,7 +194,15 @@ fun PlayerScreen(
         }
 
         builder.build().apply {
-            val mediaItem = MediaItem.fromUri(mediaUri)
+            val isHlsStream = streamUrl.contains("/api/hls") || streamUrl.contains(".m3u8")
+            val mediaItem = if (isHlsStream) {
+                MediaItem.Builder()
+                    .setUri(mediaUri)
+                    .setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
+                    .build()
+            } else {
+                MediaItem.fromUri(mediaUri)
+            }
             setMediaItem(mediaItem)
             prepare()
             playWhenReady = true
