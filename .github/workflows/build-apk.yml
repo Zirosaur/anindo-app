@@ -8,6 +8,9 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -29,16 +32,28 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
 
+      - name: Prepare APK Asset
+        run: |
+          mkdir -p release_assets
+          TAG_NAME="${{ github.ref_name }}"
+          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "main" ]; then
+            TAG_NAME="v0.1.0-beta"
+          fi
+          cp app/build/outputs/apk/debug/app-debug.apk "release_assets/anindo-app-${TAG_NAME}.apk"
+
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: anindo-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: release_assets/*.apk
 
       - name: Create GitHub Release on Tag
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/debug/app-debug.apk
+          name: "anindo-app ${{ github.ref_name }}"
+          files: release_assets/*.apk
+          prerelease: true
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
