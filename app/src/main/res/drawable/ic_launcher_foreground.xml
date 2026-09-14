@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Stylized Anindo Play Triangle / "A" Glyph -->
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M38,30 L76,54 L38,78 Z" />
+    <path
+        android:fillColor="#121316"
+        android:pathData="M44,40 L64,54 L44,68 Z" />
+    <!-- Center Accent Dot -->
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M49,54m-4,0a4,4 0 1,0 8,0a4,4 0 1,0 -8,0" />
+</vector>
