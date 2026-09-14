@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -37,6 +38,17 @@ class MainActivity : ComponentActivity() {
                 val currentRoute = navBackStackEntry?.destination?.route
 
                 val isPlayerActive = currentRoute?.startsWith("player/") == true
+
+                val navigateToTab: (String) -> Unit = { route ->
+                    navController.navigate(route) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
@@ -71,7 +83,8 @@ class MainActivity : ComponentActivity() {
                                         )
                                     )
                                 },
-                                onExploreClick = { navController.navigate(Screen.Explore.route) }
+                                onExploreClick = { navigateToTab(Screen.Explore.route) }
+
                             )
                         }
                         composable(Screen.Ongoing.route) {
@@ -124,7 +137,8 @@ class MainActivity : ComponentActivity() {
                                         )
                                     )
                                 },
-                                onExploreClick = { navController.navigate(Screen.Explore.route) }
+                                onExploreClick = { navigateToTab(Screen.Explore.route) }
+
                             )
                         }
                         composable(
