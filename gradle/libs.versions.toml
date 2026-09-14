@@ -13,6 +13,11 @@ jsoup = "1.18.1"
 media3 = "1.4.1"
 room = "2.6.1"
 coroutines = "1.8.1"
+ksp = "2.0.20-1.0.25"
+work = "2.9.1"
+junit = "4.13.2"
+
+
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -49,7 +54,16 @@ androidx-room-compiler = { group = "androidx.room", name = "room-compiler", vers
 # Coroutines
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 
+# WorkManager (Background Downloads)
+androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
+
+# Testing
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+
+
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+

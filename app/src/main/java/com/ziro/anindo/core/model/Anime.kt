@@ -8,5 +8,10 @@ data class Anime(
     val type: String? = null,
     val status: String? = null,
     val synopsis: String? = null,
-    val rating: String? = null
-)
+    val rating: String? = null,
+    val id: String = "",
+    val genres: List<String> = emptyList()
+) {
+    val computedId: String
+        get() = id.ifBlank { url.hashCode().toString() }
+}
