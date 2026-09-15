@@ -1,43 +1,76 @@
-# anindo-app (Anime Indo Android)
+<p align="center">
+  <img src="docs/logo.png" width="120" height="120" alt="Anindo Logo" style="border-radius: 24px;" />
+</p>
 
-> 📱 **Aplikasi Streaming & Unduh Anime Bebas Iklan untuk Android (Subtitle Indonesia), terinspirasi oleh filosofi dan desain Mihon / Tachiyomi.**
+<h1 align="center">anindo-app (Anime Indo Android)</h1>
 
-[![Download Beta APK](https://img.shields.io/badge/Download-v0.1.0--beta%20APK-00E5FF?style=for-the-badge&logo=android&logoColor=black)](https://github.com/Zirosaur/anindo-app/releases/download/v0.1.0-beta/anindo-app-v0.1.0-beta.apk)
-[![Release](https://img.shields.io/github/v/release/Zirosaur/anindo-app?include_prereleases&style=for-the-badge&color=00E5FF)](https://github.com/Zirosaur/anindo-app/releases/tag/v0.1.0-beta)
+<p align="center">
+  <strong>Aplikasi Streaming & Unduh Anime Bebas Iklan untuk Android (Subtitle Indonesia), terinspirasi oleh filosofi dan desain Mihon / Tachiyomi.</strong>
+</p>
 
+<p align="center">
+  <a href="https://github.com/Zirosaur/anindo-app/releases/latest">
+    <img src="https://img.shields.io/badge/Download-v0.1.11--beta%20APK-00E5FF?style=for-the-badge&logo=android&logoColor=black" alt="Download APK" />
+  </a>
+  <a href="https://github.com/Zirosaur/anindo-app/releases">
+    <img src="https://img.shields.io/github/v/release/Zirosaur/anindo-app?include_prereleases&style=for-the-badge&color=00E5FF" alt="Latest Release" />
+  </a>
+  <img src="https://img.shields.io/badge/License-Open%20Source-brightgreen?style=for-the-badge" alt="License" />
+</p>
 
 ---
 
 ## ✨ Fitur Utama
 
-- 🚫 **100% Bebas Iklan (Zero Ads & Open Source)**: Pengalaman streaming murni tanpa banner judi, pop-under, atau redirect berbahaya.
-- 🎨 **Desain Material You 3 (Mihon-Style UX)**:
-  - **Koleksi (Library)**: Simpan dan tandai anime favoritmu.
-  - **Ongoing Feed**: Episode terbaru yang tayang musim ini terupdate setiap hari.
-  - **Jelajah (Explore)**: Pencarian cepat lintas penyedia (*multi-provider search*).
-  - **Riwayat (History)**: Riwayat tontonan lengkap dengan persentase dan waktu jeda.
-- 🌐 **Arsitektur Scraper Modular & Anti-Blokir**:
-  - **Dynamic Domain Resolver**: Otomatis mendeteksi domain baru jika situs web sumber berganti alamat.
-  - **Cross-Provider Episode Stream Fallback**: Jika server pada satu penyedia mati, aplikasi otomatis mencari mirror episode di penyedia lain secara transparan.
-  - **Remote OTA Rules**: Pembaruan selektor web tanpa perlu mengunduh ulang APK.
-- 🎬 **Pemutar Video Terintegrasi**:
-  - Menggunakan AndroidX Media3 / ExoPlayer dengan dukungan HLS (`.m3u8`) dan dekripsi Putarin AES-256-GCM.
-  - Smart Seek Resume: Otomatis melanjutkan pemutaran di menit/detik terakhir ditonton.
-- 📥 **Download Manager Terjadwal**:
-  - Unduh episode ke penyimpanan lokal untuk ditonton secara offline saat bepergian.
+- 🚫 **100% Bebas Iklan (Zero Ads)**: Menonton anime dengan nyaman dan aman tanpa gangguan banner iklan, pop-up, atau pengalihan berbahaya.
+- 🎨 **Antarmuka Modern (Mihon-Style UX & Material 3)**:
+  - **Koleksi (Bookmarks)**: Tandai dan simpan anime favorit ke perpustakaan lokal.
+  - **Ongoing Feed**: Episode anime terbaru yang sedang tayang diperbarui secara berkala setiap hari.
+  - **Jelajah (Explore)**: Pencarian cepat dan serentak di berbagai penyedia (*concurrent multi-provider search*).
+  - **Riwayat (History)**: Melacak progres menonton dengan indikator persentase dan waktu putar terakhir.
+  - **Tab Unduhan**: Manajemen video offline yang tersimpan di perangkat.
+- 🎬 **Pemutar Video Kaya Fitur (ExoPlayer Media3)**:
+  - **Keep Screen Awake**: Layar tetap menyala selama video diputar tanpa redup atau mati otomatis.
+  - **Auto-Pause Cerdas**: Pemutaran video dan audio otomatis terjeda saat aplikasi diminimalkan, layar dimatikan, atau tombol power ditekan.
+  - **Kontrol Gestur**: Usap sisi kiri untuk kecerahan layar, usap sisi kanan untuk volume suara, dan ketuk ganda untuk melompat 10 detik.
+  - **Smart Resume**: Melanjutkan pemutaran secara otomatis di detik terakhir yang Anda tonton.
+  - **Pengaturan Lengkap**: Pilihan rasio aspek (*Fit, Zoom, Stretch*), kecepatan putar (0.5x - 2.0x), dan tombol pengunci layar (*Lock Controls*).
+- 📥 **Pengunduh Offline (Background Download Manager)**:
+  - Mengunduh episode di latar belakang menggunakan **Android WorkManager**.
+  - Mendukung berkas **Direct MP4** dan penggabungan segmen **HLS MPEG-TS (`.m3u8`)** otomatis menjadi video utuh.
+  - Menyimpan langsung ke direktori publik `/sdcard/Download/Anindo/` sehingga dapat diputar dari galeri ponsel maupun pemutar video pihak ketiga (dengan fallback Scoped Storage aman).
+  - Notifikasi progres unduhan langsung pada bilah notifikasi sistem Android.
+- 🌐 **Anti-Blokir & Multi-Provider Scraper**:
+  - **Built-in DNS-over-HTTPS (DoH)**: Menggunakan Cloudflare & Google DoH bawaan sehingga dapat memutar anime secara lancar tanpa perlu memasang VPN tambahan.
+  - **Cross-Provider Failover**: Jika salah satu sumber mengalami kendala server, aplikasi dapat mencari sumber alternatif secara transparan.
+  - **Dynamic Domain Resolver**: Otomatis mendeteksi domain mirror jika situs penyedia berganti alamat.
 
 ---
 
 ## 🏛️ Arsitektur Teknologi (Tech Stack)
 
-* **Bahasa**: Kotlin (100% Native Android)
-* **Antarmuka (UI)**: Jetpack Compose + Material 3 Design System
-* **Arsitektur**: MVVM (Model-View-ViewModel) + Single Activity Navigation
-* **Jaringan & Ekstraksi**: OkHttp 4 + Jsoup DOM Parser
-* **Pemuatan Gambar**: Coil Compose (Memory & Disk Cache otomatis)
-* **Media Player**: AndroidX Media3 (ExoPlayer HLS Engine)
-* **Database Lokal**: Android Room Database (SQLite)
-* **Build System**: Gradle Kotlin DSL (`build.gradle.kts`) + Version Catalog (`libs.versions.toml`)
+| Komponen | Teknologi yang Digunakan |
+|---|---|
+| **Bahasa** | Kotlin 100% (Android Native) |
+| **UI Framework** | Jetpack Compose + Material 3 Design System |
+| **Arsitektur** | MVVM (Model-View-ViewModel) + Single Activity NavHost |
+| **Media Player** | AndroidX Media3 (ExoPlayer Engine dengan HLS & OkHttp DataSource) |
+| **Database Lokal** | Android Room Database (SQLite dengan KSP) |
+| **Pemuatan Gambar** | Coil Compose (Memory & Disk Cache) |
+| **Jaringan & Scraper** | OkHttp 4 + Jsoup HTML DOM Parser |
+| **Tugas Latar Belakang** | Android WorkManager (Offline Downloader & Notifikasi) |
+| **Build System** | Gradle Kotlin DSL (`build.gradle.kts`) + Version Catalog (`libs.versions.toml`) |
+
+---
+
+## 📦 Unduh & Pasang Berkas APK
+
+Setiap rilis berkas APK resmi dapat diunduh langsung melalui tautan berikut:
+
+👉 **[Unduh Versi Terbaru (GitHub Releases)](https://github.com/Zirosaur/anindo-app/releases/latest)**
+
+> [!TIP]
+> Aplikasi menggunakan penandatanganan rilis persisten (`anindo-release.jks`), sehingga setiap pembaruan versi baru dapat langsung ditimpa (*update in-place*) tanpa perlu menghapus instalasi versi sebelumnya.
 
 ---
 
@@ -56,22 +89,15 @@ cd anindo-app
 # Berikan izin eksekusi gradle wrapper
 chmod +x gradlew
 
-# Bangun berkas APK Debug
-./gradlew assembleDebug
+# Kompilasi berkas APK Release
+./gradlew assembleRelease
 ```
-Berkas APK hasil kompilasi akan berada di:
-`app/build/outputs/apk/debug/app-debug.apk`
-
----
-
-## 📦 Unduh Berkas APK (Rilis)
-
-Setiap pembaruan dan rilis APK resmi dapat diunduh langsung di halaman:
-👉 **[GitHub Releases](https://github.com/Zirosaur/anindo-app/releases)**
+Berkas APK hasil kompilasi akan berada di direktori:
+`app/build/outputs/apk/release/app-release.apk`
 
 ---
 
 ## 🤝 Kontribusi & Lisensi
 
-Proyek ini bersifat terbuka untuk komunitas anime Indonesia.
-Dikembangkan dengan ❤️ untuk menghadirkan pengalaman menonton anime yang bersih dan nyaman di Android.
+Proyek ini bersifat sumber terbuka (*open-source*) untuk komunitas anime Indonesia.  
+Dikembangkan dengan ❤️ untuk menghadirkan pengalaman menonton anime yang bersih, cepat, dan nyaman di Android.
