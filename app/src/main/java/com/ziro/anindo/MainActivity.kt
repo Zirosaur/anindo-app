@@ -16,20 +16,30 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.ziro.anindo.core.data.local.entity.EpisodeProgressEntity
+import com.ziro.anindo.core.model.Episode
+import com.ziro.anindo.core.provider.ProviderRegistry
 import com.ziro.anindo.ui.components.AnindoBottomBar
 import com.ziro.anindo.ui.navigation.Screen
 import com.ziro.anindo.ui.screens.details.DetailsScreen
 import com.ziro.anindo.ui.screens.explore.ExploreScreen
 import com.ziro.anindo.ui.screens.library.LibraryScreen
+import com.ziro.anindo.ui.screens.library.LibraryTab
 import com.ziro.anindo.ui.screens.ongoing.OngoingScreen
 import com.ziro.anindo.ui.screens.player.PlayerScreen
 import com.ziro.anindo.ui.theme.AnindoTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.net.URLDecoder
 
 import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -55,6 +65,47 @@ class MainActivity : ComponentActivity() {
 
                 val isPlayerActive = currentRoute?.startsWith("player/") == true
 
+                val context = LocalContext.current
+                val scope = rememberCoroutineScope()
+
+                val onHistoryItemClick: (EpisodeProgressEntity) -> Unit = { item ->
+                    val isLocal = !item.episodeUrl.startsWith("http://", ignoreCase = true) && !item.episodeUrl.startsWith("https://", ignoreCase = true)
+                    if (isLocal || item.episodeUrl.endsWith(".mp4", ignoreCase = true) || item.episodeUrl.contains("/api/hls")) {
+                        navController.navigate(
+                            Screen.Player.createRoute(
+                                streamUrl = item.episodeUrl,
+                                title = item.episodeTitle,
+                                animeId = item.animeId,
+                                animeTitle = item.animeTitle,
+                                poster = item.animePosterUrl,
+                                epUrl = item.episodeUrl
+                            )
+                        )
+                    } else {
+                        Toast.makeText(context, "Menghubungkan ke server video...", Toast.LENGTH_SHORT).show()
+                        scope.launch {
+                            val streamResult = withContext(Dispatchers.IO) {
+                                ProviderRegistry.resolveStreamForEpisodeUrl(item.episodeUrl, item.episodeTitle)
+                            }
+                            if (streamResult != null && streamResult.url.isNotBlank()) {
+                                navController.navigate(
+                                    Screen.Player.createRoute(
+                                        streamUrl = streamResult.url,
+                                        title = item.episodeTitle,
+                                        animeId = item.animeId,
+                                        animeTitle = item.animeTitle,
+                                        poster = item.animePosterUrl,
+                                        epUrl = item.episodeUrl,
+                                        referer = streamResult.referer ?: item.episodeUrl
+                                    )
+                                )
+                            } else {
+                                Toast.makeText(context, "Gagal memuat server video episode ini", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                }
+
                 val navigateToTab: (String) -> Unit = { route ->
                     navController.navigate(route) {
                         popUpTo(navController.graph.findStartDestination().id) {
@@ -64,7 +115,6 @@ class MainActivity : ComponentActivity() {
                         restoreState = true
                     }
                 }
-
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
@@ -81,6 +131,7 @@ class MainActivity : ComponentActivity() {
                     ) {
                         composable(Screen.Library.route) {
                             LibraryScreen(
+                                initialTab = LibraryTab.BOOKMARKS,
                                 onAnimeClick = { animeId, provider, detailUrl ->
                                     navController.navigate(
                                         Screen.Details.createRoute(
@@ -99,8 +150,8 @@ class MainActivity : ComponentActivity() {
                                         )
                                     )
                                 },
+                                onHistoryClick = onHistoryItemClick,
                                 onExploreClick = { navigateToTab(Screen.Explore.route) }
-
                             )
                         }
                         composable(Screen.Ongoing.route) {
@@ -127,13 +178,13 @@ class MainActivity : ComponentActivity() {
                                             poster = anime.posterUrl ?: "",
                                             provider = anime.provider.lowercase()
                                         )
-
                                     )
                                 }
                             )
                         }
                         composable(Screen.History.route) {
                             LibraryScreen(
+                                initialTab = LibraryTab.HISTORY,
                                 onAnimeClick = { animeId, provider, detailUrl ->
                                     navController.navigate(
                                         Screen.Details.createRoute(
@@ -152,8 +203,8 @@ class MainActivity : ComponentActivity() {
                                         )
                                     )
                                 },
+                                onHistoryClick = onHistoryItemClick,
                                 onExploreClick = { navigateToTab(Screen.Explore.route) }
-
                             )
                         }
                         composable(
@@ -185,7 +236,7 @@ class MainActivity : ComponentActivity() {
                                 posterUrl = posterUrl,
                                 providerName = provider,
                                 onBackClick = { navController.popBackStack() },
-                                onPlayEpisode = { streamUrl, epTitle, ref ->
+                                onPlayEpisode = { streamUrl, epTitle, epUrl, ref ->
                                     navController.navigate(
                                         Screen.Player.createRoute(
                                             streamUrl = streamUrl,
@@ -193,7 +244,7 @@ class MainActivity : ComponentActivity() {
                                             animeId = animeId,
                                             animeTitle = animeTitle,
                                             poster = posterUrl,
-                                            epUrl = streamUrl,
+                                            epUrl = epUrl,
                                             referer = ref
                                         )
                                     )

@@ -42,6 +42,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -62,11 +63,17 @@ import java.util.Locale
 
 @Composable
 fun LibraryScreen(
+    initialTab: LibraryTab = LibraryTab.BOOKMARKS,
     onAnimeClick: (animeId: String, provider: String, detailUrl: String) -> Unit,
     onPlayEpisode: (episodeUrl: String, episodeTitle: String) -> Unit,
+    onHistoryClick: (EpisodeProgressEntity) -> Unit = { item -> onPlayEpisode(item.episodeUrl, item.episodeTitle) },
     onExploreClick: () -> Unit,
     viewModel: LibraryViewModel = viewModel()
 ) {
+    LaunchedEffect(initialTab) {
+        viewModel.selectTab(initialTab)
+    }
+
     val selectedTab by viewModel.selectedTab.collectAsState()
     val bookmarks by viewModel.bookmarks.collectAsState()
     val history by viewModel.history.collectAsState()
@@ -196,7 +203,7 @@ fun LibraryScreen(
                             HistoryItemCard(
                                 item = item,
                                 onClick = {
-                                    onPlayEpisode(item.episodeUrl, item.episodeTitle)
+                                    onHistoryClick(item)
                                 }
                             )
                         }

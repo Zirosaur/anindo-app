@@ -80,6 +80,10 @@ class AnimeRepository(
         progressDao.clearHistory()
     }
 
+    suspend fun cleanupCorruptedHistory() {
+        progressDao.cleanupCorruptedStreamHistory()
+    }
+
     fun getAllDownloads(): Flow<List<DownloadEntity>> {
         return downloadDao.observeAllDownloads()
     }

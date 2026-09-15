@@ -34,6 +34,9 @@ class LibraryViewModel : ViewModel() {
 
     init {
         viewModelScope.launch {
+            repository.cleanupCorruptedHistory()
+        }
+        viewModelScope.launch {
             repository.getBookmarkedAnime().collect { list ->
                 _bookmarks.value = list
             }

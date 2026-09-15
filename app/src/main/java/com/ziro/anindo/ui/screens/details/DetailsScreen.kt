@@ -61,7 +61,7 @@ fun DetailsScreen(
     posterUrl: String = "",
     providerName: String = "otakudesu",
     onBackClick: () -> Unit,
-    onPlayEpisode: (String, String, String) -> Unit,
+    onPlayEpisode: (String, String, String, String) -> Unit,
     viewModel: DetailsViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -133,7 +133,7 @@ fun DetailsScreen(
                                         val stream = viewModel.resolveStream(episode, providerName)
                                         isResolving = false
                                         if (stream != null && stream.url.isNotBlank()) {
-                                            onPlayEpisode(stream.url, episode.title, stream.referer ?: episode.url)
+                                            onPlayEpisode(stream.url, episode.title, episode.url, stream.referer ?: episode.url)
                                         } else {
                                             Toast.makeText(context, "Gagal memuat server video episode ini", Toast.LENGTH_SHORT).show()
                                         }

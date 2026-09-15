@@ -3,9 +3,12 @@ package com.ziro.anindo.core.provider
 import com.ziro.anindo.core.model.Anime
 import com.ziro.anindo.core.model.Episode
 import com.ziro.anindo.core.model.StreamCandidate
+import com.ziro.anindo.core.model.StreamResult
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 
 object ProviderRegistry {
@@ -98,5 +101,38 @@ object ProviderRegistry {
             }
         }
         return Pair(null, emptyList())
+    }
+
+    suspend fun resolveStreamForEpisodeUrl(
+        episodeUrl: String,
+        episodeTitle: String = ""
+    ): StreamResult? = withContext(Dispatchers.IO) {
+        val primaryProvider = if (episodeUrl.contains("nontonanime", ignoreCase = true)) {
+            get("nontonanimeid") ?: get("otakudesu")
+        } else {
+            get("otakudesu") ?: all().firstOrNull()
+        } ?: return@withContext null
+
+        val episode = Episode(
+            title = episodeTitle.ifBlank { "Episode" },
+            url = episodeUrl
+        )
+
+        try {
+            val candidates = primaryProvider.extractStreams(episode)
+            for (cand in candidates) {
+                try {
+                    val res = cand.resolve()
+                    if (res != null && res.url.isNotBlank()) {
+                        return@withContext res
+                    }
+                } catch (e: Throwable) {
+                    // Try next candidate
+                }
+            }
+        } catch (e: Exception) {
+            // Extraction error
+        }
+        null
     }
 }

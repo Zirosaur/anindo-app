@@ -26,4 +26,7 @@ interface EpisodeProgressDao {
 
     @Query("DELETE FROM episode_progress")
     suspend fun clearHistory()
+
+    @Query("DELETE FROM episode_progress WHERE episodeUrl LIKE '%cloudflarestorage.com%' OR episodeUrl LIKE '%r2.%' OR episodeUrl LIKE '%/api/hls%' OR episodeUrl LIKE '%X-Amz-%' OR episodeUrl LIKE '%.mp4?%' OR episodeUrl LIKE '%desustream%'")
+    suspend fun cleanupCorruptedStreamHistory()
 }
