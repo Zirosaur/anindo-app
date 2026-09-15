@@ -115,6 +115,7 @@ object ProviderRegistry {
 
         val episode = Episode(
             title = episodeTitle.ifBlank { "Episode" },
+            epNum = 0f,
             url = episodeUrl
         )
 
