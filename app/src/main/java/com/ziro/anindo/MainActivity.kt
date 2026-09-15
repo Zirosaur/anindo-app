@@ -176,10 +176,10 @@ class MainActivity : ComponentActivity() {
                                         val tag = json.optString("tag_name", "")
                                         val notes = json.optString("name", "").ifBlank { tag }
                                         withContext(Dispatchers.Main) {
-                                            if (tag.isNotBlank() && tag != "v0.1.12-beta") {
+                                            if (tag.isNotBlank() && tag != "v0.1.13-beta") {
                                                 drawerUpdateMessage = "Versi baru tersedia: $tag\n\n$notes\n\nUnduh versi terbaru dari GitHub Releases."
                                             } else {
-                                                drawerUpdateMessage = "anindo-app sudah versi terbaru (v0.1.12-beta)!"
+                                                drawerUpdateMessage = "anindo-app sudah versi terbaru (v0.1.13-beta)!"
                                             }
                                         }
                                     } catch (e: Exception) {
@@ -448,7 +448,7 @@ class MainActivity : ComponentActivity() {
                         text = {
                             Text(
                                 "anindo-app adalah aplikasi streaming & unduh anime subtitle Indonesia bebas iklan, terinspirasi oleh kesederhanaan dan keindahan Mihon / Tachiyomi.\n\n" +
-                                "Versi: v0.1.12-beta\n" +
+                                "Versi: v0.1.13-beta\n" +
                                 "Lisensi: Open Source\n" +
                                 "Pengembang: Ziro & Komunitas"
                             )

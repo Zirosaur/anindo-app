@@ -92,7 +92,7 @@ class SettingsViewModel : ViewModel() {
         }
     }
 
-    fun checkForAppUpdates(currentVersion: String = "v0.1.11-beta") {
+    fun checkForAppUpdates(currentVersion: String = "v0.1.13-beta") {
         viewModelScope.launch(Dispatchers.IO) {
             _isCheckingUpdate.value = true
             _updateMessage.value = null

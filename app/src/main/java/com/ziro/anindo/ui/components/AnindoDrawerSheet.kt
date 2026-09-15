@@ -67,7 +67,7 @@ fun AnindoDrawerSheet(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Image(
-                        painter = painterResource(id = R.mipmap.ic_launcher),
+                        painter = painterResource(id = R.drawable.app_logo),
                         contentDescription = "Anindo Logo",
                         modifier = Modifier
                             .size(54.dp)
@@ -87,7 +87,7 @@ fun AnindoDrawerSheet(
                             modifier = Modifier.padding(top = 4.dp)
                         ) {
                             Text(
-                                text = " v0.1.12-beta ",
+                                text = " v0.1.13-beta ",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer

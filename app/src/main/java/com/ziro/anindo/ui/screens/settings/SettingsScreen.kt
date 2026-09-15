@@ -367,7 +367,7 @@ fun SettingsScreen(
                 SettingsItem(
                     icon = Icons.Default.SystemUpdate,
                     title = "Periksa Pembaruan Aplikasi",
-                    subtitle = "Versi rilis saat ini: v0.1.11-beta",
+                    subtitle = "Versi rilis saat ini: v0.1.13-beta",
                     trailingContent = {
                         if (isCheckingUpdate) {
                             CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
@@ -375,7 +375,7 @@ fun SettingsScreen(
                     },
                     onClick = {
                         if (!isCheckingUpdate) {
-                            viewModel.checkForAppUpdates("v0.1.11-beta")
+                            viewModel.checkForAppUpdates("v0.1.13-beta")
                         }
                     }
                 )

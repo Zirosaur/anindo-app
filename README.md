@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/Zirosaur/anindo-app/releases/latest">
-    <img src="https://img.shields.io/badge/Download-v0.1.12--beta%20APK-00E5FF?style=for-the-badge&logo=android&logoColor=black" alt="Download APK" />
+    <img src="https://img.shields.io/badge/Download-v0.1.13--beta%20APK-00E5FF?style=for-the-badge&logo=android&logoColor=black" alt="Download APK" />
   </a>
   <a href="https://github.com/Zirosaur/anindo-app/releases">
     <img src="https://img.shields.io/github/v/release/Zirosaur/anindo-app?include_prereleases&style=for-the-badge&color=00E5FF" alt="Latest Release" />
