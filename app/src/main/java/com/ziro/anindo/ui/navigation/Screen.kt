@@ -7,6 +7,7 @@ sealed class Screen(val route: String, val title: String) {
     object Ongoing : Screen("ongoing", "Ongoing")
     object Explore : Screen("explore", "Jelajah")
     object History : Screen("history", "Riwayat")
+    object Settings : Screen("settings", "Pengaturan")
 
     object Details : Screen(
         "details/{animeUrlB64}?animeId={animeId}&title={title}&poster={poster}&provider={provider}",

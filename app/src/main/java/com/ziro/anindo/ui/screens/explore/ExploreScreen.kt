@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,6 +15,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -34,32 +36,43 @@ import com.ziro.anindo.ui.components.AnimeCard
 @Composable
 fun ExploreScreen(
     onAnimeClick: (Anime) -> Unit,
+    onMenuClick: () -> Unit = {},
     viewModel: ExploreViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val query by viewModel.query.collectAsState()
 
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedTextField(
-            value = query,
-            onValueChange = { viewModel.onQueryChange(it) },
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Cari judul anime (misal: Frieren, Initial D)...") },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
-            trailingIcon = {
-                if (query.isNotBlank()) {
-                    IconButton(onClick = { viewModel.onQueryChange("") }) {
-                        Icon(Icons.Default.Clear, contentDescription = "Hapus")
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onMenuClick) {
+                Icon(Icons.Default.Menu, contentDescription = "Menu Utama")
+            }
+            OutlinedTextField(
+                value = query,
+                onValueChange = { viewModel.onQueryChange(it) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(end = 8.dp),
+                placeholder = { Text("Cari judul anime...") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                trailingIcon = {
+                    if (query.isNotBlank()) {
+                        IconButton(onClick = { viewModel.onQueryChange("") }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Hapus")
+                        }
                     }
-                }
-            },
-            singleLine = true,
-            shape = MaterialTheme.shapes.large
-        )
+                },
+                singleLine = true,
+                shape = MaterialTheme.shapes.large
+            )
+        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         when (val state = uiState) {
             is ExploreUiState.Idle -> {

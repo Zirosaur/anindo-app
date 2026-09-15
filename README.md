@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/Zirosaur/anindo-app/releases/latest">
-    <img src="https://img.shields.io/badge/Download-v0.1.11--beta%20APK-00E5FF?style=for-the-badge&logo=android&logoColor=black" alt="Download APK" />
+    <img src="https://img.shields.io/badge/Download-v0.1.12--beta%20APK-00E5FF?style=for-the-badge&logo=android&logoColor=black" alt="Download APK" />
   </a>
   <a href="https://github.com/Zirosaur/anindo-app/releases">
     <img src="https://img.shields.io/github/v/release/Zirosaur/anindo-app?include_prereleases&style=for-the-badge&color=00E5FF" alt="Latest Release" />
@@ -23,6 +23,13 @@
 ## ✨ Fitur Utama
 
 - 🚫 **100% Bebas Iklan (Zero Ads)**: Menonton anime dengan nyaman dan aman tanpa gangguan banner iklan, pop-up, atau pengalihan berbahaya.
+- 🍔 **Burger Menu (Navigation Drawer) & Pengaturan Lengkap**:
+  - **Menu Samping ☰**: Akses cepat dengan mengetuk tombol menu atau usap dari tepi kiri layar (*edge swipe*).
+  - **Pengaturan Pemutar**: Kualitas default (Auto, 1080p, 720p, 480p, 360p), rasio aspek (Fit, Zoom, Stretch), kecepatan putar, durasi lompat ganda (5-30s), toggle gestur, keep-awake, dan auto-pause.
+  - **Pengaturan Unduhan**: Opsi unduh hanya via Wi-Fi, pilihan lokasi folder publik atau internal, dan notifikasi unduhan selesai.
+  - **Pengaturan Jaringan**: Pilihan DoH provider (Cloudflare 1.1.1.1 / Google 8.8.8.8 / Sistem) serta sinkronisasi aturan OTA langsung dari GitHub.
+  - **Pengaturan Tampilan**: Tema Gelap, AMOLED Hitam Murni (hemat baterai), Terang, Mengikuti Sistem, dan Dynamic Color (Material You).
+  - **Manajemen Data**: Cek dan bersihkan cache gambar poster Coil serta hapus riwayat tontonan.
 - 🎨 **Antarmuka Modern (Mihon-Style UX & Material 3)**:
   - **Koleksi (Bookmarks)**: Tandai dan simpan anime favorit ke perpustakaan lokal.
   - **Ongoing Feed**: Episode anime terbaru yang sedang tayang diperbarui secara berkala setiap hari.
@@ -32,7 +39,7 @@
 - 🎬 **Pemutar Video Kaya Fitur (ExoPlayer Media3)**:
   - **Keep Screen Awake**: Layar tetap menyala selama video diputar tanpa redup atau mati otomatis.
   - **Auto-Pause Cerdas**: Pemutaran video dan audio otomatis terjeda saat aplikasi diminimalkan, layar dimatikan, atau tombol power ditekan.
-  - **Kontrol Gestur**: Usap sisi kiri untuk kecerahan layar, usap sisi kanan untuk volume suara, dan ketuk ganda untuk melompat 10 detik.
+  - **Kontrol Gestur**: Usap sisi kiri untuk kecerahan layar, usap sisi kanan untuk volume suara, dan ketuk ganda untuk melompat sesuai interval pilihan.
   - **Smart Resume**: Melanjutkan pemutaran secara otomatis di detik terakhir yang Anda tonton.
   - **Pengaturan Lengkap**: Pilihan rasio aspek (*Fit, Zoom, Stretch*), kecepatan putar (0.5x - 2.0x), dan tombol pengunci layar (*Lock Controls*).
 - 📥 **Pengunduh Offline (Background Download Manager)**:

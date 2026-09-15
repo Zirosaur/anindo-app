@@ -14,6 +14,9 @@ class AnindoApp : Application() {
     lateinit var downloadManager: com.ziro.anindo.core.download.AppDownloadManager
         private set
 
+    lateinit var settingsManager: com.ziro.anindo.core.data.settings.SettingsManager
+        private set
+
     companion object {
         lateinit var instance: AnindoApp
             private set
@@ -25,6 +28,7 @@ class AnindoApp : Application() {
         database = AppDatabase.getInstance(this)
         repository = AnimeRepository(database)
         downloadManager = com.ziro.anindo.core.download.AppDownloadManager(this)
+        settingsManager = com.ziro.anindo.core.data.settings.SettingsManager(this)
     }
 }
 

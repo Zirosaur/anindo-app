@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -67,6 +68,7 @@ fun LibraryScreen(
     onAnimeClick: (animeId: String, provider: String, detailUrl: String) -> Unit,
     onPlayEpisode: (episodeUrl: String, episodeTitle: String) -> Unit,
     onHistoryClick: (EpisodeProgressEntity) -> Unit = { item -> onPlayEpisode(item.episodeUrl, item.episodeTitle) },
+    onMenuClick: () -> Unit = {},
     onExploreClick: () -> Unit,
     viewModel: LibraryViewModel = viewModel()
 ) {
@@ -86,11 +88,14 @@ fun LibraryScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            IconButton(onClick = onMenuClick) {
+                Icon(Icons.Default.Menu, contentDescription = "Menu Utama")
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "📚 Koleksi & Unduhan",
                     style = MaterialTheme.typography.titleLarge,

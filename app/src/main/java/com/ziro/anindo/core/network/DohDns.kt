@@ -31,32 +31,64 @@ class DohDns : Dns {
         // Check in-memory DNS cache
         cache[hostname]?.let { return it }
 
-        // 1. Query Cloudflare DoH (Direct IP 1.1.1.1)
-        try {
-            val ips = queryDoh("https://1.1.1.1/dns-query?name=$hostname&type=A")
-            if (ips.isNotEmpty()) {
-                cache[hostname] = ips
-                return ips
-            }
-        } catch (_: Exception) {}
+        val providerMode = try {
+            com.ziro.anindo.AnindoApp.instance.settingsManager.dohProvider.value
+        } catch (_: Throwable) {
+            "cloudflare"
+        }
 
-        // 2. Query Cloudflare Secondary DoH (Direct IP 1.0.0.1)
-        try {
-            val ips = queryDoh("https://1.0.0.1/dns-query?name=$hostname&type=A")
-            if (ips.isNotEmpty()) {
-                cache[hostname] = ips
-                return ips
-            }
-        } catch (_: Exception) {}
+        if (providerMode == "system") {
+            val systemResult = Dns.SYSTEM.lookup(hostname)
+            cache[hostname] = systemResult
+            return systemResult
+        }
 
-        // 3. Query Google DoH (Direct IP 8.8.8.8)
-        try {
-            val ips = queryGoogleDoh("https://8.8.8.8/resolve?name=$hostname&type=A")
-            if (ips.isNotEmpty()) {
-                cache[hostname] = ips
-                return ips
-            }
-        } catch (_: Exception) {}
+        if (providerMode == "google") {
+            try {
+                val ips = queryGoogleDoh("https://8.8.8.8/resolve?name=$hostname&type=A")
+                if (ips.isNotEmpty()) {
+                    cache[hostname] = ips
+                    return ips
+                }
+            } catch (_: Exception) {}
+        } else {
+            // 1. Query Cloudflare DoH (Direct IP 1.1.1.1)
+            try {
+                val ips = queryDoh("https://1.1.1.1/dns-query?name=$hostname&type=A")
+                if (ips.isNotEmpty()) {
+                    cache[hostname] = ips
+                    return ips
+                }
+            } catch (_: Exception) {}
+
+            // 2. Query Cloudflare Secondary DoH (Direct IP 1.0.0.1)
+            try {
+                val ips = queryDoh("https://1.0.0.1/dns-query?name=$hostname&type=A")
+                if (ips.isNotEmpty()) {
+                    cache[hostname] = ips
+                    return ips
+                }
+            } catch (_: Exception) {}
+        }
+
+        // Secondary fallback between DoH providers
+        if (providerMode != "google") {
+            try {
+                val ips = queryGoogleDoh("https://8.8.8.8/resolve?name=$hostname&type=A")
+                if (ips.isNotEmpty()) {
+                    cache[hostname] = ips
+                    return ips
+                }
+            } catch (_: Exception) {}
+        } else {
+            try {
+                val ips = queryDoh("https://1.1.1.1/dns-query?name=$hostname&type=A")
+                if (ips.isNotEmpty()) {
+                    cache[hostname] = ips
+                    return ips
+                }
+            } catch (_: Exception) {}
+        }
 
         // 4. Fallback to System DNS
         val systemResult = Dns.SYSTEM.lookup(hostname)

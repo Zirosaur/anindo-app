@@ -24,13 +24,20 @@ private val LightColorScheme = lightColorScheme(
     tertiary = Pink40
 )
 
+private val AmoledDarkColorScheme = DarkColorScheme.copy(
+    background = androidx.compose.ui.graphics.Color.Black,
+    surface = androidx.compose.ui.graphics.Color(0xFF0A0A0A)
+)
+
 @Composable
 fun AnindoTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    isAmoled: Boolean = false,
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
+        isAmoled && darkTheme -> AmoledDarkColorScheme
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)

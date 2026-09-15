@@ -52,8 +52,14 @@ class AppDownloadManager(private val context: Context) {
             .putString(DownloadWorker.KEY_REFERER, referer)
             .build()
 
+        val wifiOnly = try {
+            AnindoApp.instance.settingsManager.downloadWifiOnly.value
+        } catch (_: Throwable) {
+            false
+        }
+
         val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .setRequiredNetworkType(if (wifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED)
             .build()
 
         val downloadRequest = OneTimeWorkRequestBuilder<DownloadWorker>()

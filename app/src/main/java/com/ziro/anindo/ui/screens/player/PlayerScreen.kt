@@ -118,13 +118,23 @@ fun PlayerScreen(
     val repository = AnindoApp.instance.repository
     val scope = rememberCoroutineScope()
 
+    val settingsManager = remember { AnindoApp.instance.settingsManager }
+    val isKeepAwake = remember { settingsManager.isKeepScreenAwake.value }
+    val isAutoPause = remember { settingsManager.isAutoPauseScreenOff.value }
+    val isGesturesEnabled = remember { settingsManager.isGestureControlsEnabled.value }
+    val seekStepMs = remember { settingsManager.seekIntervalSeconds.value * 1000L }
+    val initialResize = remember { settingsManager.defaultResizeMode.value.coerceIn(0, 2) }
+    val initialSpeed = remember { settingsManager.defaultPlaybackSpeed.value }
+
     // Enforce Landscape orientation, keep screen awake, and hide system bars while in PlayerScreen
     DisposableEffect(Unit) {
         val originalOrientation = activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
 
-        // Keep screen awake while watching video
-        activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // Keep screen awake while watching video if enabled in settings
+        if (isKeepAwake) {
+            activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
 
         // Immersive sticky fullscreen mode
         activity?.window?.let { window ->
@@ -135,7 +145,9 @@ fun PlayerScreen(
 
         onDispose {
             activity?.requestedOrientation = originalOrientation
-            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            if (isKeepAwake) {
+                activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
             activity?.window?.let { window ->
                 val insetsController = WindowCompat.getInsetsController(window, window.decorView)
                 insetsController.show(WindowInsetsCompat.Type.systemBars())
@@ -162,9 +174,9 @@ fun PlayerScreen(
     var gestureHudIcon by remember { mutableStateOf(Icons.Default.VolumeUp) }
 
     // Playback settings
-    var playbackSpeed by remember { mutableFloatStateOf(1.0f) }
+    var playbackSpeed by remember { mutableFloatStateOf(initialSpeed) }
     var showSpeedMenu by remember { mutableStateOf(false) }
-    var resizeModeIndex by remember { mutableIntStateOf(0) }
+    var resizeModeIndex by remember { mutableIntStateOf(initialResize) }
     val resizeModes = remember {
         listOf(
             AspectRatioFrameLayout.RESIZE_MODE_FIT,
@@ -298,7 +310,7 @@ fun PlayerScreen(
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
-                    if (exoPlayer.isPlaying) {
+                    if (isAutoPause && exoPlayer.isPlaying) {
                         exoPlayer.pause()
                     }
                 }
@@ -310,7 +322,7 @@ fun PlayerScreen(
         val screenOffReceiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context?, intent: Intent?) {
                 if (intent?.action == Intent.ACTION_SCREEN_OFF) {
-                    if (exoPlayer.isPlaying) {
+                    if (isAutoPause && exoPlayer.isPlaying) {
                         exoPlayer.pause()
                     }
                 }
@@ -323,7 +335,7 @@ fun PlayerScreen(
             lifecycleOwner.lifecycle.removeObserver(observer)
             try {
                 context.unregisterReceiver(screenOffReceiver)
-            } catch (_: Exception) {}
+            } catch (_: IllegalArgumentException) {}
         }
     }
 
@@ -353,10 +365,18 @@ fun PlayerScreen(
     }
 
     // Auto-hide controls timer
-    LaunchedEffect(isControlsVisible) {
-        if (isControlsVisible && !isLocked) {
-            delay(4000L)
+    LaunchedEffect(isControlsVisible, isPlaying) {
+        if (isControlsVisible && isPlaying && !isLocked) {
+            delay(4500)
             isControlsVisible = false
+        }
+    }
+
+    // Controls progress updater
+    LaunchedEffect(exoPlayer, isPlaying) {
+        while (isActive) {
+            currentPosition = exoPlayer.currentPosition.coerceAtLeast(0L)
+            delay(500)
         }
     }
 
@@ -367,7 +387,7 @@ fun PlayerScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .pointerInput(isLocked) {
+            .pointerInput(isLocked, seekStepMs) {
                 detectTapGestures(
                     onTap = {
                         isControlsVisible = !isControlsVisible
@@ -375,16 +395,17 @@ fun PlayerScreen(
                     onDoubleTap = { offset ->
                         if (!isLocked) {
                             val half = size.width / 2f
+                            val seekSec = seekStepMs / 1000L
                             if (offset.x < half) {
-                                // Double tap left: rewind 10s
-                                exoPlayer.seekTo((exoPlayer.currentPosition - 10000L).coerceAtLeast(0L))
+                                // Double tap left: rewind
+                                exoPlayer.seekTo((exoPlayer.currentPosition - seekStepMs).coerceAtLeast(0L))
                                 gestureHudIcon = Icons.Default.Replay10
-                                gestureHudText = "-10s"
+                                gestureHudText = "-${seekSec}s"
                             } else {
-                                // Double tap right: forward 10s
-                                exoPlayer.seekTo((exoPlayer.currentPosition + 10000L).coerceAtMost(exoPlayer.duration))
+                                // Double tap right: forward
+                                exoPlayer.seekTo((exoPlayer.currentPosition + seekStepMs).coerceAtMost(exoPlayer.duration))
                                 gestureHudIcon = Icons.Default.Forward10
-                                gestureHudText = "+10s"
+                                gestureHudText = "+${seekSec}s"
                             }
                             showGestureHud = true
                             scope.launch {
@@ -395,8 +416,8 @@ fun PlayerScreen(
                     }
                 )
             }
-            .pointerInput(isLocked) {
-                if (isLocked) return@pointerInput
+            .pointerInput(isLocked, isGesturesEnabled) {
+                if (isLocked || !isGesturesEnabled) return@pointerInput
                 detectVerticalDragGestures(
                     onDragStart = { showGestureHud = true },
                     onDragEnd = {
@@ -441,7 +462,7 @@ fun PlayerScreen(
                     player = exoPlayer
                     useController = false // Custom overlay UI
                     resizeMode = resizeModes[resizeModeIndex]
-                    keepScreenOn = true
+                    keepScreenOn = isKeepAwake
                     layoutParams = FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
@@ -654,12 +675,12 @@ fun PlayerScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(
-                            onClick = { exoPlayer.seekTo((exoPlayer.currentPosition - 10000L).coerceAtLeast(0L)) },
+                            onClick = { exoPlayer.seekTo((exoPlayer.currentPosition - seekStepMs).coerceAtLeast(0L)) },
                             modifier = Modifier
                                 .size(48.dp)
                                 .background(Color.Black.copy(alpha = 0.4f), CircleShape)
                         ) {
-                            Icon(Icons.Default.Replay10, contentDescription = "-10s", tint = Color.White)
+                            Icon(Icons.Default.Replay10, contentDescription = "-${seekStepMs / 1000L}s", tint = Color.White)
                         }
 
                         IconButton(
@@ -679,7 +700,7 @@ fun PlayerScreen(
                         }
 
                         IconButton(
-                            onClick = { exoPlayer.seekTo((exoPlayer.currentPosition + 10000L).coerceAtMost(exoPlayer.duration)) },
+                            onClick = { exoPlayer.seekTo((exoPlayer.currentPosition + seekStepMs).coerceAtMost(exoPlayer.duration)) },
                             modifier = Modifier
                                 .size(48.dp)
                                 .background(Color.Black.copy(alpha = 0.4f), CircleShape)
